@@ -32,6 +32,32 @@ Para crear un nuevo repositorio, usa el siguiente comando de Artisan:
 php artisan make:repository NombreDelRepositorio
 ```
 
+## Comandos
+
+### make:repository
+
+Este comando crea un repositorio con su contrato e implementación.
+
+**Uso:**
+```sh
+php artisan make:repository {name} {model?}
+```
+
+**Argumentos:**
+- `name`: El nombre del repositorio.
+- `model` (opcional): El nombre del modelo Eloquent asociado.
+
+**Ejemplo:**
+```sh
+php artisan make:repository UserRepository User
+```
+
+Este comando creará los siguientes archivos:
+- `app/Repositories/UserRepository.php`
+- `app/Repositories/Contracts/UserRepositoryInterface.php`
+
+Si el modelo no se proporciona, se asume que el nombre del modelo es el mismo que el nombre del repositorio sin el sufijo `Repository`.
+
 ### Ejemplo de Uso
 
 ```php
