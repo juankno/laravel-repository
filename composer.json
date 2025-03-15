@@ -17,6 +17,7 @@
           "Juankno\\Repository\\Providers\\RepositoryServiceProvider"
         ]
       }
-    }
-  }
-  
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}
