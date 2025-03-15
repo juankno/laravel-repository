@@ -7,12 +7,13 @@ use Illuminate\Support\Facades\File;
 
 class MakeRepositoryCommand extends Command
 {
-    protected $signature = 'make:repository {name}';
+    protected $signature = 'make:repository {name} {model?}';
     protected $description = 'Crea un repositorio con su contrato e implementación';
 
     public function handle()
     {
         $name = $this->argument('name');
+        $model = $this->argument('model') ?? $name;
 
         if (substr($name, -10) !== 'Repository') {
             $name .= 'Repository';
@@ -30,7 +31,7 @@ class MakeRepositoryCommand extends Command
         }
 
         if (!File::exists($repositoryPath)) {
-            File::put($repositoryPath, $this->getRepositoryContent($name));
+            File::put($repositoryPath, $this->getRepositoryContent($name, $model));
         }
 
         $this->info("Repositorio {$name} creado correctamente.");
@@ -54,49 +55,50 @@ class MakeRepositoryCommand extends Command
         PHP;
     }
 
-    protected function getRepositoryContent($name)
+    protected function getRepositoryContent($name, $model)
     {
+        $modelImport = $this->argument('model') ? "use App\Models\\{$model};" : '';
+        $modelProperty = $this->argument('model') ? "protected \${$model};" : '';
+        $modelConstructor = $this->argument('model') ? "public function __construct({$model} \$model)\n            {\n                \$this->{$model} = \$model;\n            }" : '';
+
         return <<<PHP
         <?php
 
         namespace App\Repositories;
 
         use App\Repositories\Contracts\\{$name}Interface;
-        use App\Models\\{$name};
+        {$modelImport}
 
         class {$name} implements {$name}Interface
         {
-            protected \${$name};
+            {$modelProperty}
 
-            public function __construct({$name} \$model)
-            {
-                \$this->{$name} = \$model;
-            }
+            {$modelConstructor}
 
             public function all()
             {
-                return \$this->{$name}->all();
+                return \$this->{$model}->all();
             }
 
             public function find(\$id)
             {
-                return \$this->{$name}->find(\$id);
+                return \$this->{$model}->find(\$id);
             }
 
             public function create(array \$data)
             {
-                return \$this->{$name}->create(\$data);
+                return \$this->{$model}->create(\$data);
             }
 
             public function update(\$id, array \$data)
             {
-                \$model = \$this->{$name}->find(\$id);
+                \$model = \$this->{$model}->find(\$id);
                 return \$model ? \$model->update(\$data) : false;
             }
 
             public function delete(\$id)
             {
-                return \$this->{$name}->destroy(\$id);
+                return \$this->{$model}->destroy(\$id);
             }
         }
         PHP;
