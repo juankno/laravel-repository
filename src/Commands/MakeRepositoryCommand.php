@@ -15,12 +15,33 @@ class MakeRepositoryCommand extends Command
     public function handle()
     {
         $name = Str::studly($this->argument('name'));
-        $model = Str::studly($this->argument('model') ?? $name);
+        $model = Str::studly($this->argument('model') ?? class_basename($name));
 
-        if (!Str::endsWith($name, 'Repository')) {
-            $name .= 'Repository';
+        // Extraer directorio y nombre del repositorio
+        $pathParts = explode('/', $name);
+        $repositoryName = Str::studly(array_pop($pathParts));
+
+        // Asegurar que el nombre termine con "Repository"
+        if (!Str::endsWith($repositoryName, 'Repository')) {
+            $repositoryName .= 'Repository';
         }
 
+        // Construir el directorio donde se guardará el repositorio
+        $repositoryDirectory = app_path('Repositories/' . implode('/', $pathParts));
+        $contractsDirectory = app_path('Repositories/Contracts/' . implode('/', $pathParts));
+
+        // Asegurar que los directorios existen
+        foreach ([$repositoryDirectory, $contractsDirectory] as $dir) {
+            if (!File::isDirectory($dir)) {
+                File::makeDirectory($dir, 0755, true);
+            }
+        }
+
+        // Construcción de rutas de archivos
+        $repositoryPath = "{$repositoryDirectory}/{$repositoryName}.php";
+        $interfacePath = "{$contractsDirectory}/{$repositoryName}Interface.php";
+
+        // Validación del modelo si se proporciona
         if ($this->argument('model')) {
             $fullModelClass = "App\\Models\\{$model}";
 
@@ -35,41 +56,31 @@ class MakeRepositoryCommand extends Command
             }
         }
 
-        $paths = [
-            app_path('Repositories'),
-            app_path('Repositories/Contracts'),
-        ];
-
-        foreach ($paths as $path) {
-            if (!File::isDirectory($path)) {
-                File::makeDirectory($path, 0755, true);
-            }
-        }
-
-        $repositoryPath = app_path("Repositories/{$name}.php");
-        $interfacePath = app_path("Repositories/Contracts/{$name}Interface.php");
-
+        // Crear la interfaz si no existe
         if (File::exists($interfacePath)) {
-            $this->warn("La interfaz {$name}Interface ya existe.");
+            $this->warn("La interfaz {$repositoryName}Interface ya existe.");
         } else {
-            File::put($interfacePath, $this->getInterfaceContent($name));
-            $this->info("Interfaz {$name}Interface creada correctamente.");
+            File::put($interfacePath, $this->getInterfaceContent($repositoryName, implode('\\', $pathParts)));
+            $this->info("Interfaz {$repositoryName}Interface creada correctamente.");
         }
 
+        // Crear el repositorio si no existe
         if (File::exists($repositoryPath)) {
-            $this->warn("El repositorio {$name} ya existe.");
+            $this->warn("El repositorio {$repositoryName} ya existe.");
         } else {
-            File::put($repositoryPath, $this->getRepositoryContent($name, $model));
-            $this->info("Repositorio {$name} creado correctamente.");
+            File::put($repositoryPath, $this->getRepositoryContent($repositoryName, $model, implode('\\', $pathParts)));
+            $this->info("Repositorio {$repositoryName} creado correctamente.");
         }
     }
 
-    protected function getInterfaceContent($name)
+    protected function getInterfaceContent($name, $namespace)
     {
+        $namespace = $namespace ? "App\\Repositories\\Contracts\\{$namespace}" : "App\\Repositories\\Contracts";
+
         return <<<PHP
         <?php
 
-        namespace App\Repositories\Contracts;
+        namespace {$namespace};
 
         interface {$name}Interface
         {
@@ -82,9 +93,11 @@ class MakeRepositoryCommand extends Command
         PHP;
     }
 
-    protected function getRepositoryContent($name, $model)
+    protected function getRepositoryContent($name, $model, $namespace)
     {
-        $modelImport = $this->argument('model') ? "use App\Models\\{$model};" : '';
+        $namespace = $namespace ? "App\\Repositories\\{$namespace}" : "App\\Repositories";
+        $contractNamespace = $namespace ? str_replace("App\\Repositories", "App\\Repositories\\Contracts", $namespace) : "App\\Repositories\\Contracts";
+        $modelImport = $this->argument('model') ? "use App\\Models\\{$model};" : '';
         $modelVariable = Str::camel($model);
         $modelProperty = $this->argument('model') ? "protected \${$modelVariable};" : '';
         $modelConstructor = $this->argument('model')
@@ -93,39 +106,39 @@ class MakeRepositoryCommand extends Command
 
         return <<<PHP
         <?php
-
-        namespace App\Repositories;
-
-        use App\Repositories\Contracts\\{$name}Interface;
+    
+        namespace {$namespace};
+    
+        use {$contractNamespace}\\{$name}Interface;
         {$modelImport}
-
+    
         class {$name} implements {$name}Interface
         {
             {$modelProperty}
-
+    
             {$modelConstructor}
-
+    
             public function all()
             {
                 return \$this->{$modelVariable}->all();
             }
-
+    
             public function find(\$id)
             {
                 return \$this->{$modelVariable}->find(\$id);
             }
-
+    
             public function create(array \$data)
             {
                 return \$this->{$modelVariable}->create(\$data);
             }
-
+    
             public function update(\$id, array \$data)
             {
                 \$model = \$this->{$modelVariable}->find(\$id);
-                return \$model ? \$model->update(\$data) : false;
+                return \$model ? tap(\$model)->update(\$data) : false;
             }
-
+    
             public function delete(\$id)
             {
                 \$model = \$this->{$modelVariable}->find(\$id);
