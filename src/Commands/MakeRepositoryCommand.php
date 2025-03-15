@@ -13,7 +13,7 @@ class MakeRepositoryCommand extends Command
     public function handle()
     {
         $name = $this->argument('name');
-        
+
         if (substr($name, -10) !== 'Repository') {
             $name .= 'Repository';
         }
@@ -64,7 +64,7 @@ class MakeRepositoryCommand extends Command
         use App\Repositories\Contracts\\{$name}Interface;
         use App\Models\\{$name};
 
-        class {$name}Repository implements {$name}Interface
+        class {$name} implements {$name}Interface
         {
             protected \${$name};
 
