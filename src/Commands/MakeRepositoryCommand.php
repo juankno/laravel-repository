@@ -13,7 +13,12 @@ class MakeRepositoryCommand extends Command
     public function handle()
     {
         $name = $this->argument('name');
-        $repositoryPath = app_path("Repositories/{$name}Repository.php");
+        
+        if (substr($name, -10) !== 'Repository') {
+            $name .= 'Repository';
+        }
+
+        $repositoryPath = app_path("Repositories/{$name}.php");
         $interfacePath = app_path("Repositories/Contracts/{$name}Interface.php");
 
         if (!File::isDirectory(app_path('Repositories/Contracts'))) {
