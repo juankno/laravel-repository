@@ -2,90 +2,89 @@
 
 🌎 Read this in [Spanish](README.es.md).
 
-This package provides functionalities to work with the Repository pattern in Laravel.
+This package simplifies working with the **Repository Pattern** in Laravel by automatically generating repository files, contracts, and bindings.
 
 ## Installation
 
-You can install the package using Composer:
+Install the package using Composer:
 
-```bash
+```sh
 composer require juankno/laravel-repository
 ```
 
 ## Configuration
 
-After installing the package, add the `RepositoryServiceProvider` to the `providers` array in `config/app.php`:
+If Laravel does not auto-discover the package, manually register the `RepositoryServiceProvider` in `config/app.php`:
 
 ```php
 'providers' => [
-    // ...existing code...
     Juankno\Repository\Providers\RepositoryServiceProvider::class,
-    // ...existing code...
 ],
 ```
 
 ## Usage
 
-### Create a Repository
+### Creating a Repository
 
-To create a new repository, use the following Artisan command:
+To generate a new repository, run the following Artisan command:
 
-```bash
+```sh
 php artisan make:repository RepositoryName
 ```
 
-## Commands
+## Available Commands
 
-### make:repository
+### `make:repository`
 
-This command creates a repository with its contract and implementation.
+This command generates a repository along with its contract and implementation.
 
-**Usage:**
+#### **Usage:**
 ```sh
 php artisan make:repository {name} {model?}
 ```
 
-**Arguments:**
-- `name`: The name of the repository.
-- `model` (optional): The name of the associated Eloquent model.
+#### **Arguments:**
+- `name` _(required)_: The name of the repository.
+- `model` _(optional)_: The associated Eloquent model.
 
-**Example:**
+#### **Example:**
 ```sh
 php artisan make:repository UserRepository User
 ```
 
-This command will create the following files:
+This command will generate:
 - `app/Repositories/UserRepository.php`
 - `app/Repositories/Contracts/UserRepositoryInterface.php`
 
-If the model is not provided, it is assumed that the model name is the same as the repository name without the `Repository` suffix.
+If no model is specified, the command assumes that the model name matches the repository name, minus the `Repository` suffix.
 
-### Usage Example
+## Example Usage
 
 ```php
-use App\Repositories\RepositoryName;
+use App\Repositories\Contracts\UserRepositoryInterface;
 
-class ExampleController extends Controller
+class UserController extends Controller
 {
-    protected $repository;
+    protected $userRepository;
 
-    public function __construct(RepositoryName $repository)
+    public function __construct(UserRepositoryInterface $userRepository)
     {
-        $this->repository = $repository;
+        $this->userRepository = $userRepository;
     }
 
     public function index()
     {
-        $data = $this->repository->all();
-        return view('example.index', compact('data'));
+        $users = $this->userRepository->all();
+        return view('users.index', compact('users'));
     }
 }
 ```
 
 ## Contributions
 
-Contributions are welcome. Please submit a pull request or open an issue to discuss the changes you would like to make.
+Contributions are welcome!  
+Feel free to submit a **pull request** or open an **issue** to discuss improvements.
 
 ## License
 
-This project is licensed under the MIT License.
+This project is open-source and available under the **MIT License**.
