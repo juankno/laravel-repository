@@ -19,6 +19,11 @@ class MakeRepositoryCommand extends Command
             $name .= 'Repository';
         }
 
+        if ($this->argument('model') && !class_exists("App\\Models\\{$model}")) {
+            $this->error("El modelo {$model} no existe.");
+            return;
+        }
+
         $repositoryPath = app_path("Repositories/{$name}.php");
         $interfacePath = app_path("Repositories/Contracts/{$name}Interface.php");
 
@@ -58,8 +63,9 @@ class MakeRepositoryCommand extends Command
     protected function getRepositoryContent($name, $model)
     {
         $modelImport = $this->argument('model') ? "use App\Models\\{$model};" : '';
-        $modelProperty = $this->argument('model') ? "protected \${$model};" : '';
-        $modelConstructor = $this->argument('model') ? "public function __construct({$model} \$model)\n            {\n                \$this->{$model} = \$model;\n            }" : '';
+        $modelVariable = lcfirst($model);
+        $modelProperty = $this->argument('model') ? "protected \${$modelVariable};" : '';
+        $modelConstructor = $this->argument('model') ? "public function __construct({$model} \${$modelVariable})\n    {\n        \$this->{$modelVariable} = \${$modelVariable};\n    }" : '';
 
         return <<<PHP
         <?php
@@ -77,28 +83,28 @@ class MakeRepositoryCommand extends Command
 
             public function all()
             {
-                return \$this->{$model}->all();
+                return \$this->{$modelVariable}->all();
             }
 
             public function find(\$id)
             {
-                return \$this->{$model}->find(\$id);
+                return \$this->{$modelVariable}->find(\$id);
             }
 
             public function create(array \$data)
             {
-                return \$this->{$model}->create(\$data);
+                return \$this->{$modelVariable}->create(\$data);
             }
 
             public function update(\$id, array \$data)
             {
-                \$model = \$this->{$model}->find(\$id);
+                \$model = \$this->{$modelVariable}->find(\$id);
                 return \$model ? \$model->update(\$data) : false;
             }
 
             public function delete(\$id)
             {
-                return \$this->{$model}->destroy(\$id);
+                return \$this->{$modelVariable}->destroy(\$id);
             }
         }
         PHP;
