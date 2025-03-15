@@ -4,6 +4,8 @@ namespace Juankno\Repository\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
+use Illuminate\Database\Eloquent\Model;
 
 class MakeRepositoryCommand extends Command
 {
@@ -12,34 +14,54 @@ class MakeRepositoryCommand extends Command
 
     public function handle()
     {
-        $name = $this->argument('name');
-        $model = $this->argument('model') ?? $name;
+        $name = Str::studly($this->argument('name'));
+        $model = Str::studly($this->argument('model') ?? $name);
 
-        if (substr($name, -10) !== 'Repository') {
+        if (!Str::endsWith($name, 'Repository')) {
             $name .= 'Repository';
         }
 
-        if ($this->argument('model') && !class_exists("App\\Models\\{$model}")) {
-            $this->error("El modelo {$model} no existe.");
-            return;
+        if ($this->argument('model')) {
+            $fullModelClass = "App\\Models\\{$model}";
+
+            if (!class_exists($fullModelClass)) {
+                $this->error("El modelo {$model} no existe.");
+                return;
+            }
+
+            if (!is_subclass_of($fullModelClass, Model::class)) {
+                $this->error("{$model} no es un modelo válido de Eloquent.");
+                return;
+            }
+        }
+
+        $paths = [
+            app_path('Repositories'),
+            app_path('Repositories/Contracts'),
+        ];
+
+        foreach ($paths as $path) {
+            if (!File::isDirectory($path)) {
+                File::makeDirectory($path, 0755, true);
+            }
         }
 
         $repositoryPath = app_path("Repositories/{$name}.php");
         $interfacePath = app_path("Repositories/Contracts/{$name}Interface.php");
 
-        if (!File::isDirectory(app_path('Repositories/Contracts'))) {
-            File::makeDirectory(app_path('Repositories/Contracts'), 0755, true);
-        }
-
-        if (!File::exists($interfacePath)) {
+        if (File::exists($interfacePath)) {
+            $this->warn("La interfaz {$name}Interface ya existe.");
+        } else {
             File::put($interfacePath, $this->getInterfaceContent($name));
+            $this->info("Interfaz {$name}Interface creada correctamente.");
         }
 
-        if (!File::exists($repositoryPath)) {
+        if (File::exists($repositoryPath)) {
+            $this->warn("El repositorio {$name} ya existe.");
+        } else {
             File::put($repositoryPath, $this->getRepositoryContent($name, $model));
+            $this->info("Repositorio {$name} creado correctamente.");
         }
-
-        $this->info("Repositorio {$name} creado correctamente.");
     }
 
     protected function getInterfaceContent($name)
@@ -63,9 +85,11 @@ class MakeRepositoryCommand extends Command
     protected function getRepositoryContent($name, $model)
     {
         $modelImport = $this->argument('model') ? "use App\Models\\{$model};" : '';
-        $modelVariable = lcfirst($model);
+        $modelVariable = Str::camel($model);
         $modelProperty = $this->argument('model') ? "protected \${$modelVariable};" : '';
-        $modelConstructor = $this->argument('model') ? "public function __construct({$model} \${$modelVariable})\n    {\n        \$this->{$modelVariable} = \${$modelVariable};\n    }" : '';
+        $modelConstructor = $this->argument('model')
+            ? "public function __construct({$model} \${$modelVariable}) {\n        \$this->{$modelVariable} = \${$modelVariable};\n    }"
+            : '';
 
         return <<<PHP
         <?php
@@ -104,7 +128,8 @@ class MakeRepositoryCommand extends Command
 
             public function delete(\$id)
             {
-                return \$this->{$modelVariable}->destroy(\$id);
+                \$model = \$this->{$modelVariable}->find(\$id);
+                return \$model ? \$model->delete() : false;
             }
         }
         PHP;
