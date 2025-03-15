@@ -1,5 +1,7 @@
 # Laravel Repository
 
+🌎 Read this in [Spanish](README.es.md).
+
 This package provides functionalities to work with the Repository pattern in Laravel.
 
 ## Installation
