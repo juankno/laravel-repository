@@ -1,6 +1,6 @@
 {
   "name": "juankno/laravel-repository",
-  "description": "This package simplifies working with the Repository Pattern in Laravel by automatically generating repository files, contracts, and bindings.",
+  "description": "A Laravel package to easily implement the Repository Pattern with automatic binding and generation.",
   "type": "library",
   "license": "MIT",
   "authors": [
