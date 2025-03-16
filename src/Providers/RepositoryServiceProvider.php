@@ -26,6 +26,11 @@ class RepositoryServiceProvider extends ServiceProvider
                 \Juankno\Repository\Commands\MakeRepositoryCommand::class,
             ]);
         }
+
+        // Permitir que los usuarios publiquen el provider
+        $this->publishes([
+            __DIR__ . '/../../stubs/RepositoryServiceProvider.stub' => app_path('Providers/RepositoryServiceProvider.php'),
+        ], 'repository-provider');
     }
 
     protected function registerRepositories()
