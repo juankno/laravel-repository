@@ -22,6 +22,14 @@ If Laravel does not auto-discover the package, manually register the `Repository
 ],
 ```
 
+## Publishing the Repository Service Provider
+
+If you want to customize the `RepositoryServiceProvider`, you can publish it using:
+
+```sh
+php artisan vendor:publish --tag=repository-provider
+```
+
 ## Usage
 
 ### Creating a Repository
