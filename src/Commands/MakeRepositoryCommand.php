@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 class MakeRepositoryCommand extends Command
 {
     protected $signature = 'make:repository {name} {model?}';
-    protected $description = 'Crea un repositorio con su contrato e implementación';
+    protected $description = 'Create a repository with its contract and implementation';
 
     public function handle()
     {
@@ -41,35 +41,35 @@ class MakeRepositoryCommand extends Command
         $repositoryPath = "{$repositoryDirectory}/{$repositoryName}.php";
         $interfacePath = "{$contractsDirectory}/{$repositoryName}Interface.php";
 
-        // Validación del modelo si se proporciona
+        // Validate the model if provided
         if ($this->argument('model')) {
             $fullModelClass = "App\\Models\\{$model}";
 
             if (!class_exists($fullModelClass)) {
-                $this->error("El modelo {$model} no existe.");
+                $this->error("The model {$model} does not exist.");
                 return;
             }
 
             if (!is_subclass_of($fullModelClass, Model::class)) {
-                $this->error("{$model} no es un modelo válido de Eloquent.");
+                $this->error("{$model} is not a valid Eloquent model.");
                 return;
             }
         }
 
-        // Crear la interfaz si no existe
+        // Create the interface if it does not exist
         if (File::exists($interfacePath)) {
-            $this->warn("La interfaz {$repositoryName}Interface ya existe.");
+            $this->warn("The interface {$repositoryName}Interface already exists.");
         } else {
             File::put($interfacePath, $this->getInterfaceContent($repositoryName, implode('\\', $pathParts)));
-            $this->info("Interfaz {$repositoryName}Interface creada correctamente.");
+            $this->info("Interface {$repositoryName}Interface created successfully.");
         }
 
-        // Crear el repositorio si no existe
+        // Create the repository if it does not exist
         if (File::exists($repositoryPath)) {
-            $this->warn("El repositorio {$repositoryName} ya existe.");
+            $this->warn("The repository {$repositoryName} already exists.");
         } else {
             File::put($repositoryPath, $this->getRepositoryContent($repositoryName, $model, implode('\\', $pathParts)));
-            $this->info("Repositorio {$repositoryName} creado correctamente.");
+            $this->info("Repository {$repositoryName} created successfully.");
         }
     }
 
