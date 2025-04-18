@@ -10,14 +10,15 @@ class RepositoryServiceProvider extends ServiceProvider
 {
     public function register()
     {
-        $this->app->bind(
+        // Registrar el comando como un singleton para facilitar la inyección de dependencias
+        $this->app->singleton(
             'repository.generator',
             function () {
                 return new \Juankno\Repository\Commands\MakeRepositoryCommand();
             }
         );
 
-        // Register repositories after all providers are registered
+        // Registrar repositorios después de que todos los proveedores estén registrados
         $this->app->booted(function () {
             $this->registerRepositories();
         });
@@ -37,6 +38,11 @@ class RepositoryServiceProvider extends ServiceProvider
         ], 'repository-provider');
     }
 
+    /**
+     * Registra automáticamente los repositorios y sus interfaces
+     * 
+     * @return void
+     */
     protected function registerRepositories()
     {
         $basePath = app_path('Repositories');
@@ -45,41 +51,66 @@ class RepositoryServiceProvider extends ServiceProvider
             return;
         }
 
-        // Process repository files
+        // Procesar directorios de repositorios
         $this->processDirectory($basePath);
     }
 
+    /**
+     * Procesa recursivamente un directorio buscando repositorios
+     * 
+     * @param string $directory Directorio a procesar
+     * @return void
+     */
     protected function processDirectory($directory)
     {
         foreach (File::allFiles($directory) as $file) {
-            // Skip contracts directory
+            // Omitir directorios de contratos
             if (Str::contains($file->getRelativePath(), 'Contracts')) {
                 continue;
             }
 
-            // Only process PHP files
+            // Procesar solo archivos PHP
             if ($file->getExtension() !== 'php') {
                 continue;
             }
 
-            // Get class FQN from file path
+            // Obtener el FQN de la clase desde la ruta del archivo
             $class = $this->getClassFromPath($file->getPathname());
 
-            // Skip if class doesn't exist or doesn't end with Repository
-            if (!class_exists($class) || !Str::endsWith($class, 'Repository')) {
+            // Omitir si la clase no existe o no termina con Repository
+            // o si es BaseRepository o una clase abstracta
+            if (!class_exists($class) || 
+                !Str::endsWith($class, 'Repository') || 
+                $class === 'App\\Repositories\\BaseRepository') {
                 continue;
             }
 
-            // Build interface name
+            // Verificar si la clase es abstracta
+            try {
+                $reflectionClass = new \ReflectionClass($class);
+                if ($reflectionClass->isAbstract()) {
+                    continue;
+                }
+            } catch (\ReflectionException $e) {
+                continue;
+            }
+
+            // Construir el nombre de la interfaz
             $interface = $this->buildInterfaceName($class);
 
-            // Bind if interface exists
+            // Enlazar si la interfaz existe
             if (interface_exists($interface)) {
                 $this->app->bind($interface, $class);
             }
         }
     }
 
+    /**
+     * Obtiene el nombre completamente cualificado de la clase desde la ruta del archivo
+     * 
+     * @param string $path Ruta del archivo
+     * @return string Nombre completamente cualificado de la clase
+     */
     protected function getClassFromPath($path)
     {
         $appPath = app_path();
@@ -90,12 +121,24 @@ class RepositoryServiceProvider extends ServiceProvider
         return 'App\\' . $namespace;
     }
 
+    /**
+     * Construye el nombre de la interfaz basado en el nombre de la clase del repositorio
+     * 
+     * @param string $class Nombre completamente cualificado de la clase
+     * @return string Nombre completamente cualificado de la interfaz
+     */
     protected function buildInterfaceName($class)
     {
         $baseName = class_basename($class);
         $namespace = Str::beforeLast($class, '\\' . $baseName);
-        $interfaceName = Str::replaceLast('Repository', 'RepositoryInterface', $baseName);
+        
+        // Construir el nombre de la interfaz reemplazando 'Repository' por 'RepositoryInterface'
+        // o agregando 'Interface' al final si no termina en 'Repository'
+        $interfaceName = Str::endsWith($baseName, 'Repository') 
+            ? Str::replaceLast('Repository', 'RepositoryInterface', $baseName)
+            : $baseName . 'Interface';
 
+        // Reemplazar 'Repositories' por 'Repositories\Contracts' en el namespace
         return str_replace('Repositories\\', 'Repositories\\Contracts\\', $namespace) . '\\' . $interfaceName;
     }
 }
