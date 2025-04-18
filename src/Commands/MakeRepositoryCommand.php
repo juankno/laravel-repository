@@ -9,13 +9,18 @@ use Illuminate\Database\Eloquent\Model;
 
 class MakeRepositoryCommand extends Command
 {
-    protected $signature = 'make:repository {name} {model?}';
+    protected $signature = 'make:repository {name} {model?} {--force}';
     protected $description = 'Create a repository with its contract and implementation';
 
     public function handle()
     {
         $name = Str::studly($this->argument('name'));
         $model = Str::studly($this->argument('model') ?? class_basename($name));
+
+        if (preg_match('/[^A-Za-z0-9\/]/', $name)) {
+            $this->error("The repository name contains invalid characters.");
+            return;
+        }
 
         // Extraer directorio y nombre del repositorio
         $pathParts = explode('/', $name);
@@ -57,7 +62,7 @@ class MakeRepositoryCommand extends Command
         }
 
         // Create the interface if it does not exist
-        if (File::exists($interfacePath)) {
+        if (File::exists($interfacePath) && !$this->option('force')) {
             $this->warn("The interface {$repositoryName}Interface already exists.");
         } else {
             File::put($interfacePath, $this->getInterfaceContent($repositoryName, implode('\\', $pathParts)));
