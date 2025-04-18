@@ -4,6 +4,7 @@ namespace Juankno\Repository\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 
 class RepositoryServiceProvider extends ServiceProvider
 {
@@ -16,7 +17,10 @@ class RepositoryServiceProvider extends ServiceProvider
             }
         );
 
-        $this->registerRepositories();
+        // Register repositories after all providers are registered
+        $this->app->booted(function () {
+            $this->registerRepositories();
+        });
     }
 
     public function boot()
@@ -41,20 +45,57 @@ class RepositoryServiceProvider extends ServiceProvider
             return;
         }
 
-        foreach (File::allFiles($basePath) as $file) {
-            // Obtener la ruta relativa respecto a app_path('Repositories')
-            $relativePath = str_replace($basePath . DIRECTORY_SEPARATOR, '', $file->getPathname());
+        // Process repository files
+        $this->processDirectory($basePath);
+    }
 
-            // Convertir el path a namespace correcto
-            $class = 'App\\Repositories\\' . str_replace([DIRECTORY_SEPARATOR, '.php'], ['\\', ''], $relativePath);
+    protected function processDirectory($directory)
+    {
+        foreach (File::allFiles($directory) as $file) {
+            // Skip contracts directory
+            if (Str::contains($file->getRelativePath(), 'Contracts')) {
+                continue;
+            }
 
-            // Construcción de la interfaz esperada en Contracts
-            $interface = str_replace('Repositories\\', 'Repositories\\Contracts\\', $class);
-            $interface = str_replace('Repository', 'Interface', $interface);
+            // Only process PHP files
+            if ($file->getExtension() !== 'php') {
+                continue;
+            }
 
+            // Get class FQN from file path
+            $class = $this->getClassFromPath($file->getPathname());
+
+            // Skip if class doesn't exist or doesn't end with Repository
+            if (!class_exists($class) || !Str::endsWith($class, 'Repository')) {
+                continue;
+            }
+
+            // Build interface name
+            $interface = $this->buildInterfaceName($class);
+
+            // Bind if interface exists
             if (interface_exists($interface)) {
                 $this->app->bind($interface, $class);
             }
         }
+    }
+
+    protected function getClassFromPath($path)
+    {
+        $appPath = app_path();
+        $relativePath = Str::after($path, $appPath . DIRECTORY_SEPARATOR);
+        $relativePath = str_replace('.php', '', $relativePath);
+        $namespace = str_replace(DIRECTORY_SEPARATOR, '\\', $relativePath);
+
+        return 'App\\' . $namespace;
+    }
+
+    protected function buildInterfaceName($class)
+    {
+        $baseName = class_basename($class);
+        $namespace = Str::beforeLast($class, '\\' . $baseName);
+        $interfaceName = Str::replaceLast('Repository', 'RepositoryInterface', $baseName);
+
+        return str_replace('Repositories\\', 'Repositories\\Contracts\\', $namespace) . '\\' . $interfaceName;
     }
 }
