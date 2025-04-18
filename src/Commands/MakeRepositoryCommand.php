@@ -24,7 +24,7 @@ class MakeRepositoryCommand extends Command
         }
 
         if (preg_match('/[^A-Za-z0-9\/\\\\]/', $name)) {
-            $this->error("El nombre del repositorio contiene caracteres no válidos.");
+            $this->error("The repository name contains invalid characters.");
             return;
         }
 
@@ -53,24 +53,24 @@ class MakeRepositoryCommand extends Command
                 : "App\\Models\\{$model}";
 
             if (!class_exists($fullModelClass)) {
-                $this->warn("El modelo {$fullModelClass} no existe. Se generará el repositorio de todos modos, pero es posible que necesite ajustar la clase del modelo.");
+                $this->warn("The model {$fullModelClass} does not exist. The repository will be generated anyway, but you may need to adjust the model class.");
             } elseif (!is_subclass_of($fullModelClass, Model::class)) {
-                $this->warn("{$fullModelClass} no es un modelo Eloquent válido. Se generará el repositorio de todos modos, pero es posible que necesite ajustar la clase del modelo.");
+                $this->warn("{$fullModelClass} is not a valid Eloquent model. The repository will be generated anyway, but you may need to adjust the model class.");
             }
         }
 
         if (File::exists($interfacePath) && !$this->option('force')) {
-            $this->warn("La interfaz {$repositoryName}Interface ya existe.");
+            $this->warn("The interface {$repositoryName}Interface already exists.");
         } else {
             File::put($interfacePath, $this->getInterfaceContent($repositoryName, implode('\\', $pathParts)));
-            $this->info("Interfaz {$repositoryName}Interface creada correctamente.");
+            $this->info("Interface {$repositoryName}Interface created successfully.");
         }
 
         if (File::exists($repositoryPath) && !$this->option('force')) {
-            $this->warn("El repositorio {$repositoryName} ya existe.");
+            $this->warn("The repository {$repositoryName} already exists.");
         } else {
             File::put($repositoryPath, $this->getRepositoryContent($repositoryName, $model, implode('\\', $pathParts)));
-            $this->info("Repositorio {$repositoryName} creado correctamente.");
+            $this->info("Repository {$repositoryName} created successfully.");
         }
 
         if ($this->option('abstract') && !File::exists(app_path('Repositories/BaseRepository.php'))) {
@@ -254,7 +254,7 @@ PHP;
             $this->getBaseRepositoryContent()
         );
         
-        $this->info('Base Repository y BaseRepositoryInterface generados correctamente.');
+        $this->info('BaseRepository and BaseRepositoryInterface generated successfully.');
     }
     
     protected function getBaseInterfaceContent()
