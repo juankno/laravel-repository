@@ -109,15 +109,363 @@ php artisan make:repository UserRepository --empty
 
 Each generated repository includes the following methods (unless created with the `--empty` option):
 
-- `all(array $columns = ['*'])`: Get all records.
-- `find(int $id, array $columns = ['*'])`: Find a record by ID.
-- `findBy(string $field, $value, array $columns = ['*'])`: Find a record by a specific field.
-- `findWhere(array $conditions, array $columns = ['*'])`: Find records matching conditions.
-- `paginate(int $perPage = 15, array $columns = ['*'])`: Paginate records.
+- `all(array $columns = ['*'], array $relations = [], array $orderBy = [])`: Get all records.
+- `find(int $id, array $columns = ['*'], array $relations = [], array $appends = [])`: Find a record by ID.
+- `findBy(string $field, $value, array $columns = ['*'], array $relations = [])`: Find a record by a specific field.
+- `findWhere(array $conditions, array $columns = ['*'], array $relations = [], array $orderBy = [])`: Find records matching conditions.
+- `paginate(int $perPage = 15, array $columns = ['*'], array $relations = [], array $orderBy = [], array $conditions = [])`: Paginate records.
 - `create(array $data)`: Create a new record.
 - `update(int $id, array $data)`: Update a record.
 - `delete(int $id)`: Delete a record.
-- `first(array $conditions = [], array $columns = ['*'])`: Get the first record matching conditions.
+- `first(array $conditions = [], array $columns = ['*'], array $relations = [], array $orderBy = [])`: Get the first record matching conditions.
+- `createMany(array $data)`: Create multiple records in a single operation.
+- `updateWhere(array $conditions, array $data)`: Update multiple records based on conditions.
+- `deleteWhere(array $conditions)`: Delete multiple records based on conditions.
+
+## Detailed Method Examples
+
+### Retrieving All Records
+
+```php
+// Get all users
+$users = $userRepository->all();
+
+// Get specific columns
+$userNames = $userRepository->all(['id', 'name', 'email']);
+
+// Get records with relations
+$usersWithPosts = $userRepository->all(['*'], ['posts']);
+
+// Get records with custom ordering
+$usersByNewest = $userRepository->all(['*'], [], ['created_at' => 'desc']);
+
+// Get records with multiple relations and ordering
+$users = $userRepository->all(
+    ['*'],
+    ['posts', 'profile', 'roles'],
+    ['name' => 'asc']
+);
+```
+
+### Finding Records by ID
+
+```php
+// Find user by ID
+$user = $userRepository->find(1);
+
+// Find user with specific columns
+$user = $userRepository->find(1, ['id', 'name', 'email']);
+
+// Find user and load relations
+$userWithPosts = $userRepository->find(1, ['*'], ['posts']);
+
+// Find user with appended attributes
+$userWithFullName = $userRepository->find(1, ['*'], [], ['full_name']);
+
+// Find user with relations and appended attributes
+$user = $userRepository->find(
+    1,
+    ['*'],
+    ['posts', 'comments'],
+    ['full_name', 'post_count']
+);
+```
+
+### Finding Records by a Specific Field
+
+```php
+// Find user by email
+$user = $userRepository->findBy('email', 'john@example.com');
+
+// Find user by username with specific columns
+$user = $userRepository->findBy('username', 'johndoe', ['id', 'username', 'email']);
+
+// Find user with relations
+$user = $userRepository->findBy('email', 'john@example.com', ['*'], ['posts', 'profile']);
+```
+
+### Finding Records with Conditions
+
+```php
+// Find active users
+$activeUsers = $userRepository->findWhere(['status' => 'active']);
+
+// Find users with specific role
+$adminUsers = $userRepository->findWhere(['role' => 'admin'], ['id', 'name', 'email']);
+
+// Using operators in conditions
+$recentUsers = $userRepository->findWhere([
+    ['created_at', '>=', now()->subDays(7)]
+]);
+
+// Find users with multiple conditions and load relations
+$users = $userRepository->findWhere(
+    [
+        'status' => 'active',
+        ['age', '>', 18]
+    ],
+    ['*'],
+    ['posts', 'profile']
+);
+
+// Find users with specific IDs (whereIn)
+$specificUsers = $userRepository->findWhere(['id' => [1, 2, 3]]);
+
+// Find with custom ordering
+$users = $userRepository->findWhere(
+    ['status' => 'active'],
+    ['*'],
+    ['profile'],
+    ['name' => 'asc']
+);
+```
+
+### Paginating Records
+
+```php
+// Paginate users (15 per page by default)
+$paginatedUsers = $userRepository->paginate();
+
+// Custom pagination
+$paginatedUsers = $userRepository->paginate(25);
+
+// Paginate with specific columns
+$paginatedUsers = $userRepository->paginate(10, ['id', 'name', 'email']);
+
+// Paginate and load relations
+$paginatedUsers = $userRepository->paginate(20, ['*'], ['posts']);
+
+// Paginate with conditions
+$paginatedActiveUsers = $userRepository->paginate(
+    15,
+    ['*'],
+    [],
+    ['created_at' => 'desc'],
+    ['status' => 'active']
+);
+
+// Display paginated results in a view
+return view('users.index', compact('paginatedUsers'));
+```
+
+### Creating Records
+
+```php
+// Create a new user
+$userData = [
+    'name' => 'John Doe',
+    'email' => 'john@example.com',
+    'password' => bcrypt('password')
+];
+$user = $userRepository->create($userData);
+
+// Create and use immediately
+$post = $postRepository->create([
+    'title' => 'New Post',
+    'content' => 'Post content',
+    'user_id' => $user->id
+]);
+```
+
+### Creating Multiple Records
+
+```php
+// Create multiple users at once
+$usersData = [
+    [
+        'name' => 'John Doe',
+        'email' => 'john@example.com',
+        'password' => bcrypt('password')
+    ],
+    [
+        'name' => 'Jane Smith',
+        'email' => 'jane@example.com',
+        'password' => bcrypt('password')
+    ]
+];
+
+$users = $userRepository->createMany($usersData);
+
+// Access the created models
+foreach ($users as $user) {
+    echo $user->id . ': ' . $user->name . "\n";
+}
+```
+
+### Updating Records
+
+```php
+// Update a user
+$updatedUser = $userRepository->update(1, [
+    'name' => 'Updated Name',
+    'email' => 'updated@example.com'
+]);
+
+// Check if update was successful
+if ($updatedUser) {
+    // Update successful, $updatedUser contains the fresh model instance
+} else {
+    // Update failed or user not found
+}
+```
+
+### Updating Records in Bulk
+
+```php
+// Update all active users to have a verified status
+$updated = $userRepository->updateWhere(
+    ['status' => 'active'],
+    ['is_verified' => true]
+);
+
+// Update users with specific role and created before a certain date
+$updated = $userRepository->updateWhere(
+    [
+        'role' => 'customer',
+        ['created_at', '<', now()->subYear()]
+    ],
+    [
+        'status' => 'inactive',
+        'needs_verification' => true
+    ]
+);
+```
+
+### Deleting Records
+
+```php
+// Delete a user
+$deleted = $userRepository->delete(1);
+
+// Check if deletion was successful
+if ($deleted) {
+    // User was successfully deleted
+} else {
+    // Deletion failed or user not found
+}
+```
+
+### Deleting Multiple Records
+
+```php
+// Delete inactive users
+$deleted = $userRepository->deleteWhere(['status' => 'inactive']);
+
+// Delete users that haven't logged in for a year
+$deleted = $userRepository->deleteWhere([
+    ['last_login_at', '<', now()->subYear()]
+]);
+
+// Delete users with specific roles
+$deleted = $userRepository->deleteWhere([
+    'role' => ['guest', 'inactive', 'blocked']
+]);
+
+// The return value is the number of deleted records
+echo "Deleted {$deleted} records";
+```
+
+### Getting the First Matching Record
+
+```php
+// Get the first active admin user
+$admin = $userRepository->first(['role' => 'admin', 'status' => 'active']);
+
+// Get first with specific columns
+$user = $userRepository->first(
+    ['status' => 'active'],
+    ['id', 'name', 'email']
+);
+
+// Get first with relations
+$user = $userRepository->first(
+    ['role' => 'editor'],
+    ['*'],
+    ['posts', 'profile']
+);
+
+// Get first with complex conditions and custom ordering
+$user = $userRepository->first(
+    [
+        'status' => 'active',
+        ['subscription_ends_at', '>', now()]
+    ],
+    ['*'],
+    ['subscription'],
+    ['created_at' => 'desc']
+);
+```
+
+## Working with Relations
+
+The repository pattern can be combined with Laravel's Eloquent relationships:
+
+```php
+// Get all posts for a user
+$user = $userRepository->find(1, ['*'], ['posts']);
+$posts = $user->posts;
+
+// Filter users by their relation data
+$userWithManyPosts = $userRepository->findWhere([
+    ['posts_count', '>', 5]
+]);
+
+// Using nested relations
+$userWithData = $userRepository->find(1, ['*'], ['posts.comments', 'profile']);
+```
+
+## Complex Queries Example
+
+```php
+class UserController extends Controller
+{
+    protected $userRepository;
+    
+    public function __construct(UserRepositoryInterface $userRepository)
+    {
+        $this->userRepository = $userRepository;
+    }
+    
+    public function getActiveSubscribers()
+    {
+        return $this->userRepository->findWhere(
+            [
+                'status' => 'active',
+                'is_subscriber' => true,
+                ['subscription_ends_at', '>', now()]
+            ],
+            ['id', 'name', 'email', 'subscription_ends_at'],
+            ['profile', 'subscriptions'],
+            ['subscription_ends_at' => 'asc']
+        );
+    }
+    
+    public function getUsersReport()
+    {
+        $activeUsers = $userRepository->findWhere(['status' => 'active']);
+        $inactiveUsers = $userRepository->findWhere(['status' => 'inactive']);
+        $pendingUsers = $userRepository->findWhere(['status' => 'pending']);
+        
+        return view('admin.users.report', compact('activeUsers', 'inactiveUsers', 'pendingUsers'));
+    }
+    
+    public function bulkUpdateSubscriptions()
+    {
+        // Extend all active subscriptions by 30 days
+        $this->userRepository->updateWhere(
+            [
+                'subscription_status' => 'active',
+                ['subscription_ends_at', '<', now()->addDays(5)]
+            ],
+            [
+                'subscription_ends_at' => now()->addDays(30)
+            ]
+        );
+        
+        return redirect()->back()->with('success', 'Subscriptions extended successfully');
+    }
+}
+```
 
 ## Example Usage in a Controller
 

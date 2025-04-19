@@ -82,7 +82,7 @@ class MakeRepositoryCommand extends Command
     {
         $namespace = $namespace ? "App\\Repositories\\Contracts\\{$namespace}" : "App\\Repositories\\Contracts";
 
-        // Si la opción --empty está activada, crear una interfaz vacía
+        // If the --empty option is active, create an empty interface
         if ($this->option('empty')) {
             return <<<PHP
 <?php
@@ -101,17 +101,131 @@ PHP;
 
 namespace {$namespace};
 
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Pagination\LengthAwarePaginator;
+
+/**
+ * Interface {$name}Interface
+ * @package {$namespace}
+ */
 interface {$name}Interface
 {
-    public function all(array \$columns = ['*']);
-    public function find(int \$id, array \$columns = ['*']);
-    public function findBy(string \$field, \$value, array \$columns = ['*']);
-    public function findWhere(array \$conditions, array \$columns = ['*']);
-    public function paginate(int \$perPage = 15, array \$columns = ['*']);
-    public function create(array \$data);
-    public function update(int \$id, array \$data);
-    public function delete(int \$id);
-    public function first(array \$conditions = [], array \$columns = ['*']);
+    /**
+     * Get all records
+     * 
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @return Collection
+     */
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    
+    /**
+     * Find a record by ID
+     * 
+     * @param int \$id Record ID
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$appends Attributes to append
+     * @return Model|null
+     */
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?Model;
+    
+    /**
+     * Find a record by a specific field
+     * 
+     * @param string \$field Field to search
+     * @param mixed \$value Value to search
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @return Model|null
+     */
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?Model;
+    
+    /**
+     * Find records matching conditions
+     * 
+     * @param array \$conditions Conditions to search
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @return Collection
+     */
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    
+    /**
+     * Paginate records
+     * 
+     * @param int \$perPage Records per page
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @param array \$conditions Conditions to filter
+     * @return LengthAwarePaginator
+     */
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): LengthAwarePaginator;
+    
+    /**
+     * Create a new record
+     * 
+     * @param array \$data Data to create record
+     * @return Model|null
+     */
+    public function create(array \$data): ?Model;
+    
+    /**
+     * Update an existing record
+     * 
+     * @param int \$id Record ID to update
+     * @param array \$data Data to update
+     * @return Model|bool
+     */
+    public function update(int \$id, array \$data): Model|bool;
+    
+    /**
+     * Delete a record
+     * 
+     * @param int \$id Record ID to delete
+     * @return bool
+     */
+    public function delete(int \$id): bool;
+    
+    /**
+     * Get the first record matching conditions
+     * 
+     * @param array \$conditions Conditions to search
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @return Model|null
+     */
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?Model;
+    
+    /**
+     * Create multiple records in a single operation
+     * 
+     * @param array \$data Array of data for records
+     * @return Collection
+     */
+    public function createMany(array \$data): Collection;
+    
+    /**
+     * Update records in bulk based on conditions
+     * 
+     * @param array \$conditions Conditions to filter records to update
+     * @param array \$data Data to update
+     * @return bool
+     */
+    public function updateWhere(array \$conditions, array \$data): bool;
+    
+    /**
+     * Delete records in bulk based on conditions
+     * 
+     * @param array \$conditions Conditions to filter records to delete
+     * @return bool|int Number of records deleted or false if failed
+     */
+    public function deleteWhere(array \$conditions): bool|int;
 }
 PHP;
     }
@@ -211,57 +325,255 @@ PHP;
     protected function getStandardMethodsContent($modelVariable)
     {
         return <<<PHP
-    public function all(array \$columns = ['*'])
+    /**
+     * Get all records
+     */
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): \Illuminate\Database\Eloquent\Collection
     {
-        return \$this->{$modelVariable}->select(\$columns)->get();
+        \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
+        }
+        
+        return \$query->get();
     }
     
-    public function find(int \$id, array \$columns = ['*'])
+    /**
+     * Find a record by ID
+     */
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?\Illuminate\Database\Eloquent\Model
     {
-        return \$this->{$modelVariable}->select(\$columns)->find(\$id);
+        \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        \$model = \$query->find(\$id);
+        
+        if (\$model && !empty(\$appends)) {
+            \$model->append(\$appends);
+        }
+        
+        return \$model;
     }
     
-    public function findBy(string \$field, \$value, array \$columns = ['*'])
+    /**
+     * Find a record by a specific field
+     */
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?\Illuminate\Database\Eloquent\Model
     {
-        return \$this->{$modelVariable}->select(\$columns)->where(\$field, \$value)->first();
+        \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        return \$query->where(\$field, \$value)->first();
     }
     
-    public function findWhere(array \$conditions, array \$columns = ['*'])
+    /**
+     * Find records matching conditions
+     */
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): \Illuminate\Database\Eloquent\Collection
     {
-        return \$this->{$modelVariable}->select(\$columns)->where(\$conditions)->get();
+        \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
+        }
+        
+        return \$query->get();
     }
     
-    public function paginate(int \$perPage = 15, array \$columns = ['*'])
+    /**
+     * Paginate records
+     */
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): \Illuminate\Pagination\LengthAwarePaginator
     {
-        return \$this->{$modelVariable}->select(\$columns)->paginate(\$perPage);
+        \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        if (!empty(\$conditions)) {
+            foreach (\$conditions as \$field => \$value) {
+                if (is_array(\$value)) {
+                    if (count(\$value) === 3) {
+                        list(\$field, \$operator, \$searchValue) = \$value;
+                        \$query->where(\$field, \$operator, \$searchValue);
+                    } else {
+                        \$query->whereIn(\$field, \$value);
+                    }
+                } else {
+                    \$query->where(\$field, \$value);
+                }
+            }
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
+        }
+        
+        return \$query->paginate(\$perPage);
     }
     
-    public function create(array \$data)
+    /**
+     * Create a new record
+     */
+    public function create(array \$data): ?\Illuminate\Database\Eloquent\Model
     {
         return \$this->{$modelVariable}->create(\$data);
     }
     
-    public function update(int \$id, array \$data)
+    /**
+     * Update an existing record
+     */
+    public function update(int \$id, array \$data): \Illuminate\Database\Eloquent\Model|bool
     {
-        \$model = \$this->{$modelVariable}->find(\$id);
-        return \$model ? \$model->update(\$data) ? \$model : false : false;
+        \$model = \$this->find(\$id);
+        
+        if (!\$model) {
+            return false;
+        }
+        
+        \$result = \$model->update(\$data);
+        
+        // Return the updated model or false if it fails
+        return \$result ? \$model->fresh() : false;
     }
     
-    public function delete(int \$id)
+    /**
+     * Delete a record
+     */
+    public function delete(int \$id): bool
     {
-        \$model = \$this->{$modelVariable}->find(\$id);
+        \$model = \$this->find(\$id);
         return \$model ? \$model->delete() : false;
     }
     
-    public function first(array \$conditions = [], array \$columns = ['*'])
+    /**
+     * Get the first record matching conditions
+     */
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?\Illuminate\Database\Eloquent\Model
     {
         \$query = \$this->{$modelVariable}->select(\$columns);
         
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
         if (!empty(\$conditions)) {
-            \$query->where(\$conditions);
+            foreach (\$conditions as \$field => \$value) {
+                if (is_array(\$value)) {
+                    if (count(\$value) === 3) {
+                        list(\$field, \$operator, \$searchValue) = \$value;
+                        \$query->where(\$field, \$operator, \$searchValue);
+                    } else {
+                        \$query->whereIn(\$field, \$value);
+                    }
+                } else {
+                    \$query->where(\$field, \$value);
+                }
+            }
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
         }
         
         return \$query->first();
+    }
+    
+    /**
+     * Create multiple records in a single operation
+     */
+    public function createMany(array \$data): \Illuminate\Database\Eloquent\Collection
+    {
+        \$models = collect();
+        
+        foreach (\$data as \$item) {
+            \$models->push(\$this->create(\$item));
+        }
+        
+        return \$models;
+    }
+    
+    /**
+     * Update records in bulk based on conditions
+     */
+    public function updateWhere(array \$conditions, array \$data): bool
+    {
+        \$query = \$this->{$modelVariable}->query();
+        
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
+        
+        return \$query->update(\$data);
+    }
+    
+    /**
+     * Delete records in bulk based on conditions
+     */
+    public function deleteWhere(array \$conditions): bool|int
+    {
+        \$query = \$this->{$modelVariable}->query();
+        
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
+        
+        return \$query->delete();
     }
 PHP;
     }
@@ -299,17 +611,131 @@ PHP;
 
 namespace App\Repositories\Contracts;
 
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Pagination\LengthAwarePaginator;
+
+/**
+ * Interface BaseRepositoryInterface
+ * @package App\Repositories\Contracts
+ */
 interface BaseRepositoryInterface
 {
-    public function all(array \$columns = ['*']);
-    public function find(int \$id, array \$columns = ['*']);
-    public function findBy(string \$field, \$value, array \$columns = ['*']);
-    public function findWhere(array \$conditions, array \$columns = ['*']);
-    public function paginate(int \$perPage = 15, array \$columns = ['*']);
-    public function create(array \$data);
-    public function update(int \$id, array \$data);
-    public function delete(int \$id);
-    public function first(array \$conditions = [], array \$columns = ['*']);
+    /**
+     * Get all records
+     * 
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @return Collection
+     */
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    
+    /**
+     * Find a record by ID
+     * 
+     * @param int \$id Record ID
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$appends Attributes to append
+     * @return Model|null
+     */
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?Model;
+    
+    /**
+     * Find a record by a specific field
+     * 
+     * @param string \$field Field to search
+     * @param mixed \$value Value to search
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @return Model|null
+     */
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?Model;
+    
+    /**
+     * Find records matching conditions
+     * 
+     * @param array \$conditions Conditions to search
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @return Collection
+     */
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    
+    /**
+     * Paginate records
+     * 
+     * @param int \$perPage Records per page
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @param array \$conditions Conditions to filter
+     * @return LengthAwarePaginator
+     */
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): LengthAwarePaginator;
+    
+    /**
+     * Create a new record
+     * 
+     * @param array \$data Data to create record
+     * @return Model|null
+     */
+    public function create(array \$data): ?Model;
+    
+    /**
+     * Update an existing record
+     * 
+     * @param int \$id Record ID to update
+     * @param array \$data Data to update
+     * @return Model|bool
+     */
+    public function update(int \$id, array \$data): Model|bool;
+    
+    /**
+     * Delete a record
+     * 
+     * @param int \$id Record ID to delete
+     * @return bool
+     */
+    public function delete(int \$id): bool;
+    
+    /**
+     * Get the first record matching conditions
+     * 
+     * @param array \$conditions Conditions to search
+     * @param array \$columns Columns to select
+     * @param array \$relations Relations to load
+     * @param array \$orderBy Order columns [column => direction]
+     * @return Model|null
+     */
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?Model;
+    
+    /**
+     * Create multiple records in a single operation
+     * 
+     * @param array \$data Array of data for records
+     * @return Collection
+     */
+    public function createMany(array \$data): Collection;
+    
+    /**
+     * Update records in bulk based on conditions
+     * 
+     * @param array \$conditions Conditions to filter records to update
+     * @param array \$data Data to update
+     * @return bool
+     */
+    public function updateWhere(array \$conditions, array \$data): bool;
+    
+    /**
+     * Delete records in bulk based on conditions
+     * 
+     * @param array \$conditions Conditions to filter records to delete
+     * @return bool|int Number of records deleted or false if failed
+     */
+    public function deleteWhere(array \$conditions): bool|int;
 }
 PHP;
     }
@@ -321,69 +747,283 @@ PHP;
 
 namespace App\Repositories;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Pagination\LengthAwarePaginator;
 use App\Repositories\Contracts\BaseRepositoryInterface;
 
+/**
+ * Class BaseRepository
+ * 
+ * Base implementation of the Repository Pattern
+ * 
+ * @package App\Repositories
+ */
 abstract class BaseRepository implements BaseRepositoryInterface
 {
+    /**
+     * @var Model
+     */
     protected \$model;
     
+    /**
+     * Constructor
+     * 
+     * @param Model \$model
+     */
     public function __construct(Model \$model)
     {
         \$this->model = \$model;
     }
     
-    public function all(array \$columns = ['*'])
+    /**
+     * {@inheritDoc}
+     */
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection
     {
-        return \$this->model->select(\$columns)->get();
+        \$query = \$this->model->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
+        }
+        
+        return \$query->get();
     }
     
-    public function find(int \$id, array \$columns = ['*'])
+    /**
+     * {@inheritDoc}
+     */
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?Model
     {
-        return \$this->model->select(\$columns)->find(\$id);
+        \$query = \$this->model->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        \$model = \$query->find(\$id);
+        
+        if (\$model && !empty(\$appends)) {
+            \$model->append(\$appends);
+        }
+        
+        return \$model;
     }
     
-    public function findBy(string \$field, \$value, array \$columns = ['*'])
+    /**
+     * {@inheritDoc}
+     */
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?Model
     {
-        return \$this->model->select(\$columns)->where(\$field, \$value)->first();
+        \$query = \$this->model->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        return \$query->where(\$field, \$value)->first();
     }
     
-    public function findWhere(array \$conditions, array \$columns = ['*'])
+    /**
+     * {@inheritDoc}
+     */
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection
     {
-        return \$this->model->select(\$columns)->where(\$conditions)->get();
+        \$query = \$this->model->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
+        }
+        
+        return \$query->get();
     }
     
-    public function paginate(int \$perPage = 15, array \$columns = ['*'])
+    /**
+     * {@inheritDoc}
+     */
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): LengthAwarePaginator
     {
-        return \$this->model->select(\$columns)->paginate(\$perPage);
+        \$query = \$this->model->select(\$columns);
+        
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        if (!empty(\$conditions)) {
+            foreach (\$conditions as \$field => \$value) {
+                if (is_array(\$value)) {
+                    if (count(\$value) === 3) {
+                        list(\$field, \$operator, \$searchValue) = \$value;
+                        \$query->where(\$field, \$operator, \$searchValue);
+                    } else {
+                        \$query->whereIn(\$field, \$value);
+                    }
+                } else {
+                    \$query->where(\$field, \$value);
+                }
+            }
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
+        }
+        
+        return \$query->paginate(\$perPage);
     }
     
-    public function create(array \$data)
+    /**
+     * {@inheritDoc}
+     */
+    public function create(array \$data): ?Model
     {
         return \$this->model->create(\$data);
     }
     
-    public function update(int \$id, array \$data)
+    /**
+     * {@inheritDoc}
+     */
+    public function update(int \$id, array \$data): Model|bool
     {
-        \$model = \$this->model->find(\$id);
-        return \$model ? \$model->update(\$data) ? \$model : false : false;
+        \$model = \$this->find(\$id);
+        
+        if (!\$model) {
+            return false;
+        }
+        
+        \$result = \$model->update(\$data);
+        
+        // Return the updated model or false if it fails
+        return \$result ? \$model->fresh() : false;
     }
     
-    public function delete(int \$id)
+    /**
+     * {@inheritDoc}
+     */
+    public function delete(int \$id): bool
     {
-        \$model = \$this->model->find(\$id);
-        return \$model ? \$model->delete() : false;
+        return \$this->find(\$id)?->delete() ?? false;
     }
     
-    public function first(array \$conditions = [], array \$columns = ['*'])
+    /**
+     * {@inheritDoc}
+     */
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?Model
     {
         \$query = \$this->model->select(\$columns);
         
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
         if (!empty(\$conditions)) {
-            \$query->where(\$conditions);
+            foreach (\$conditions as \$field => \$value) {
+                if (is_array(\$value)) {
+                    if (count(\$value) === 3) {
+                        list(\$field, \$operator, \$searchValue) = \$value;
+                        \$query->where(\$field, \$operator, \$searchValue);
+                    } else {
+                        \$query->whereIn(\$field, \$value);
+                    }
+                } else {
+                    \$query->where(\$field, \$value);
+                }
+            }
+        }
+        
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
         }
         
         return \$query->first();
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    public function createMany(array \$data): Collection
+    {
+        \$models = collect();
+        
+        foreach (\$data as \$item) {
+            \$models->push(\$this->create(\$item));
+        }
+        
+        return \$models;
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    public function updateWhere(array \$conditions, array \$data): bool
+    {
+        \$query = \$this->model->query();
+        
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
+        
+        return \$query->update(\$data);
+    }
+    
+    /**
+     * {@inheritDoc}
+     */
+    public function deleteWhere(array \$conditions): bool|int
+    {
+        \$query = \$this->model->query();
+        
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
+        
+        return \$query->delete();
     }
 }
 PHP;
