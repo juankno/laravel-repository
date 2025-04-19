@@ -779,6 +779,130 @@ class AdminUserController extends Controller
 }
 ```
 
+## Traits para Repositorios Modulares
+
+A partir de la versión actual, el paquete incluye un conjunto de traits especializados que facilitan la creación de repositorios más modulares, mantenibles y limpios. Estos traits dividen la funcionalidad en componentes específicos que pueden combinarse según sea necesario.
+
+### Traits Disponibles
+
+1. **QueryableTrait**: Para manejar consultas (where, select, etc.)
+2. **RelationshipTrait**: Para manejar relaciones de manera optimizada
+3. **ScopableTrait**: Para trabajar con scopes de Eloquent
+4. **CrudOperationsTrait**: Para operaciones básicas CRUD
+5. **PaginationTrait**: Para diferentes tipos de paginación
+6. **TransactionTrait**: Para manejo de transacciones
+
+### Ejemplo de Uso
+
+```php
+use Juankno\Repository\Traits\CrudOperationsTrait;
+use Juankno\Repository\Traits\QueryableTrait;
+use Juankno\Repository\Traits\RelationshipTrait;
+
+class ProductRepository implements ProductRepositoryInterface
+{
+    use CrudOperationsTrait, QueryableTrait, RelationshipTrait;
+    
+    protected $model;
+    
+    public function __construct(Product $model)
+    {
+        $this->model = $model;
+    }
+    
+    // Métodos personalizados adicionales...
+}
+```
+
+Para más detalles sobre cómo usar cada trait y sus métodos específicos, consulte [nuestra documentación de traits](README.traits.md).
+
+### Generando Repositorios con Traits
+
+El comando `make:repository` ahora genera automáticamente repositorios utilizando estos traits cuando no se usa la opción `--abstract`. Esto hace que el código sea más limpio y mantenible:
+
+```php
+// Repositorio generado automáticamente
+use Juankno\Repository\Traits\CrudOperationsTrait;
+use Juankno\Repository\Traits\QueryableTrait;
+use Juankno\Repository\Traits\RelationshipTrait;
+use Juankno\Repository\Traits\ScopableTrait;
+use Juankno\Repository\Traits\PaginationTrait;
+use Juankno\Repository\Traits\TransactionTrait;
+
+class UserRepository implements UserRepositoryInterface
+{
+    use CrudOperationsTrait, 
+        QueryableTrait, 
+        RelationshipTrait,
+        ScopableTrait,
+        PaginationTrait,
+        TransactionTrait;
+        
+    protected $user;
+
+    public function __construct(User $user)
+    {
+        $this->user = $user;
+    }
+}
+```
+
+### Ventajas de Usar Traits
+
+1. **Código más limpio**: Cada trait tiene una responsabilidad única y clara
+2. **Mayor mantenibilidad**: Es más fácil actualizar la lógica en un solo lugar
+3. **Flexibilidad**: Use solo los traits que necesite para cada repositorio
+4. **Reducción de código duplicado**: La lógica común está centralizada
+5. **Mejor testabilidad**: Cada trait puede probarse de forma independiente
+
+## Configuración Mejorada
+
+El paquete ahora incluye opciones de configuración ampliadas para personalizar el comportamiento de los repositorios y traits:
+
+```php
+// config/repository.php
+
+return [
+    'cache' => [
+        'enabled' => true,
+        'ttl' => 60,
+        'key_prefix' => 'laravel_repository_',
+        'skip_in_development' => true,
+    ],
+    'relations' => [
+        'auto_load_count' => true,
+        'max_eager_relations' => 5,
+        'allow_nested_relations' => true,
+        'debug_relations' => false,
+    ],
+    'query' => [
+        'use_direct_update' => true,
+        'use_direct_delete' => true,
+        'chunk_size' => 1000,
+        'optimize_selects' => true,
+    ],
+    'traits' => [
+        'always_include' => [
+            'CrudOperationsTrait',
+            'QueryableTrait',
+            'RelationshipTrait',
+        ],
+        'optional' => [
+            'ScopableTrait',
+            'PaginationTrait',
+            'TransactionTrait',
+        ],
+    ],
+    // ...otras configuraciones
+];
+```
+
+Para publicar el archivo de configuración:
+
+```sh
+php artisan vendor:publish --tag=repository-config
+```
+
 ## Contribuciones
 
 ¡Las contribuciones son bienvenidas!  
