@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class MakeRepositoryCommand extends Command
 {
-    protected $signature = 'make:repository {name} {model?} {--force} {--abstract} {--empty : Create an empty repository without predefined methods}';
+    protected $signature = 'make:repository {name} {model?} {--force} {--abstract} {--empty : Create an empty repository without predefined methods} {--no-traits : Create a repository with implementation without using traits}';
     protected $description = 'Create a repository with its contract and implementation';
 
     public function handle()
@@ -250,8 +250,6 @@ PHP;
         } else {
             $modelClass = "App\\Models\\{$model}";
         }
-        
-        $modelVariable = Str::camel($model);
 
         $useBaseRepository = File::exists(app_path('Repositories/BaseRepository.php')) ? 
             "use App\\Repositories\\BaseRepository;\n" : '';
@@ -260,8 +258,8 @@ PHP;
             "extends BaseRepository " : "";
 
         $constructorContent = File::exists(app_path('Repositories/BaseRepository.php')) ?
-            $this->getExtendedConstructorContent($modelVariable, $model) :
-            $this->getStandardConstructorContent($modelVariable, $model);
+            $this->getExtendedConstructorContent($model) :
+            $this->getStandardConstructorContent($model);
 
         // Si la opción --empty está activada, crear un repositorio vacío solo con el constructor
         if ($this->option('empty')) {
@@ -276,7 +274,9 @@ use {$modelClass};
 
 class {$name} {$extendsBaseRepository}implements {$name}Interface
 {
-    protected \${$modelVariable};
+    /**
+     * @var {$model}
+     */
     protected \$model;
 
 {$constructorContent}
@@ -285,14 +285,60 @@ class {$name} {$extendsBaseRepository}implements {$name}Interface
 PHP;
         }
 
-        // Usar traits en lugar del método estándar
-        $traitsContent = File::exists(app_path('Repositories/BaseRepository.php')) ?
-            "" :
-            $this->getTraitsContent();
+        // Si se está usando la opción --abstract, extender de BaseRepository sin usar traits
+        if (File::exists(app_path('Repositories/BaseRepository.php'))) {
+            return <<<PHP
+<?php
+
+namespace {$namespace};
+
+use {$contractNamespace}\\{$name}Interface;
+use {$modelClass};
+{$useBaseRepository}
+
+class {$name} {$extendsBaseRepository}implements {$name}Interface
+{
+    /**
+     * @var {$model}
+     */
+    protected \$model;
+
+{$constructorContent}
+}
+PHP;
+        }
         
-        $useTraitsStatements = File::exists(app_path('Repositories/BaseRepository.php')) ?
-            "" :
-            $this->getUseTraitsStatements();
+        // Si está activada la opción --no-traits, crear un repositorio con implementación directa sin traits
+        if ($this->option('no-traits')) {
+            return <<<PHP
+<?php
+
+namespace {$namespace};
+
+use {$contractNamespace}\\{$name}Interface;
+use {$modelClass};
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+
+class {$name} implements {$name}Interface
+{
+    /**
+     * @var {$model}
+     */
+    protected \$model;
+
+{$constructorContent}
+{$this->getInlineImplementationContent()}
+}
+PHP;
+        }
+
+        // Usar traits como opción predeterminada si no se especifica --no-traits o --abstract
+        $traitsContent = $this->getTraitsContent();
+        $useTraitsStatements = $this->getUseTraitsStatements();
 
         return <<<PHP
 <?php
@@ -301,12 +347,13 @@ namespace {$namespace};
 
 use {$contractNamespace}\\{$name}Interface;
 use {$modelClass};
-{$useBaseRepository}
 {$useTraitsStatements}
 
-class {$name} {$extendsBaseRepository}implements {$name}Interface
+class {$name} implements {$name}Interface
 {
-    protected \${$modelVariable};
+    /**
+     * @var {$model}
+     */
     protected \$model;
 {$traitsContent}
 
@@ -340,28 +387,312 @@ PHP;
 PHP;
     }
 
-    protected function getStandardConstructorContent($modelVariable, $model)
+    protected function getStandardConstructorContent($model)
     {
         return <<<PHP
-    public function __construct({$model} \${$modelVariable})
+    public function __construct({$model} \$model)
     {
-        \$this->{$modelVariable} = \${$modelVariable};
-        \$this->model = \${$modelVariable};
+        \$this->model = \$model;
     }
 
 PHP;
     }
 
-    protected function getExtendedConstructorContent($modelVariable, $model)
+    protected function getExtendedConstructorContent($model)
     {
         return <<<PHP
-    public function __construct({$model} \${$modelVariable})
+    public function __construct({$model} \$model)
     {
-        parent::__construct(\${$modelVariable});
-        \$this->{$modelVariable} = \${$modelVariable};
-        \$this->model = \${$modelVariable};
+        parent::__construct(\$model);
+        \$this->model = \$model;
     }
 
+PHP;
+    }
+
+    /**
+     * Get a complete inline implementation of the repository methods without traits
+     * 
+     * @return string
+     */
+    protected function getInlineImplementationContent()
+    {
+        return <<<PHP
+    /**
+     * Apply scopes to the query builder
+     */
+    protected function applyScopes(Builder \$query, array \$scopes = []): Builder
+    {
+        foreach (\$scopes as \$scope) {
+            if (is_string(\$scope)) {
+                // Apply named scope defined in the model
+                \$query->\$scope();
+            } elseif (is_callable(\$scope)) {
+                // Apply closure scope
+                \$scope(\$query);
+            } elseif (is_array(\$scope) && count(\$scope) >= 1) {
+                // Apply scope with parameters - first element is scope name, rest are parameters
+                \$method = array_shift(\$scope);
+                \$query->\$method(...\$scope);
+            }
+        }
+        
+        return \$query;
+    }
+    
+    /**
+     * Apply conditions to a query
+     */
+    protected function applyConditions(Builder \$query, array \$conditions): void
+    {
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
+    }
+    
+    /**
+     * Apply order by clauses
+     */
+    protected function applyOrderBy(Builder \$query, array \$orderBy = []): void
+    {
+        if (!empty(\$orderBy)) {
+            foreach (\$orderBy as \$column => \$direction) {
+                \$query->orderBy(\$column, \$direction);
+            }
+        }
+    }
+    
+    /**
+     * Load relations for a query
+     */
+    protected function loadRelations(Builder \$query, array \$relations = []): Builder
+    {
+        if (!empty(\$relations)) {
+            \$query->with(\$relations);
+        }
+        
+        return \$query;
+    }
+    
+    /**
+     * Get all records
+     */
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection
+    {
+        \$query = \$this->model->select(\$columns);
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        \$query = \$this->loadRelations(\$query, \$relations);
+        \$this->applyOrderBy(\$query, \$orderBy);
+        
+        return \$query->get();
+    }
+    
+    /**
+     * Find a record by ID
+     */
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = [], array \$scopes = []): ?Model
+    {
+        \$query = \$this->model->select(\$columns);
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        \$query = \$this->loadRelations(\$query, \$relations);
+        
+        \$model = \$query->find(\$id);
+        
+        if (\$model && !empty(\$appends)) {
+            \$model->append(\$appends);
+        }
+        
+        return \$model;
+    }
+    
+    /**
+     * Find a record by a specific field
+     */
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = [], array \$scopes = []): ?Model
+    {
+        \$query = \$this->model->select(\$columns);
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        \$query = \$this->loadRelations(\$query, \$relations);
+        
+        return \$query->where(\$field, \$value)->first();
+    }
+    
+    /**
+     * Find records matching conditions
+     */
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection
+    {
+        \$query = \$this->model->select(\$columns);
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        \$query = \$this->loadRelations(\$query, \$relations);
+        \$this->applyConditions(\$query, \$conditions);
+        \$this->applyOrderBy(\$query, \$orderBy);
+        
+        return \$query->get();
+    }
+    
+    /**
+     * Get the first record matching conditions
+     */
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): ?Model
+    {
+        \$query = \$this->model->select(\$columns);
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        \$query = \$this->loadRelations(\$query, \$relations);
+        
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
+        }
+        
+        \$this->applyOrderBy(\$query, \$orderBy);
+        
+        return \$query->first();
+    }
+    
+    /**
+     * Paginate records
+     */
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = [], array \$scopes = []): LengthAwarePaginator
+    {
+        \$query = \$this->model->select(\$columns);
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        \$query = \$this->loadRelations(\$query, \$relations);
+        
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
+        }
+        
+        \$this->applyOrderBy(\$query, \$orderBy);
+        
+        return \$query->paginate(\$perPage);
+    }
+    
+    /**
+     * Create a new record
+     */
+    public function create(array \$data): ?Model
+    {
+        return \$this->model->create(\$data);
+    }
+    
+    /**
+     * Update an existing record
+     */
+    public function update(int \$id, array \$data): Model|bool
+    {
+        \$model = \$this->find(\$id);
+        
+        if (!\$model) {
+            return false;
+        }
+        
+        \$updated = \$model->update(\$data);
+        
+        return \$updated ? \$model->fresh() : false;
+    }
+    
+    /**
+     * Delete a record
+     */
+    public function delete(int \$id): bool
+    {
+        \$model = \$this->find(\$id);
+        
+        if (!\$model) {
+            return false;
+        }
+        
+        return \$model->delete();
+    }
+    
+    /**
+     * Create multiple records in a single operation
+     */
+    public function createMany(array \$data): Collection
+    {
+        return collect(\$data)->map(function(\$item) {
+            return \$this->create(\$item);
+        });
+    }
+    
+    /**
+     * Update records in bulk based on conditions
+     */
+    public function updateWhere(array \$conditions, array \$data, array \$scopes = []): bool
+    {
+        \$query = \$this->model->query();
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
+        }
+        
+        return \$query->update(\$data);
+    }
+    
+    /**
+     * Delete records in bulk based on conditions
+     */
+    public function deleteWhere(array \$conditions, array \$scopes = []): bool|int
+    {
+        \$query = \$this->model->query();
+        
+        \$query = \$this->applyScopes(\$query, \$scopes);
+        
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
+        }
+        
+        return \$query->delete();
+    }
+    
+    /**
+     * Begin a new database transaction
+     */
+    public function beginTransaction(): void
+    {
+        DB::beginTransaction();
+    }
+    
+    /**
+     * Commit the active database transaction
+     */
+    public function commit(): void
+    {
+        DB::commit();
+    }
+    
+    /**
+     * Rollback the active database transaction
+     */
+    public function rollBack(): void
+    {
+        DB::rollBack();
+    }
+    
+    /**
+     * Execute a callback within a transaction
+     */
+    public function transaction(callable \$callback)
+    {
+        return DB::transaction(\$callback);
+    }
 PHP;
     }
 

@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.0] - 2025-04-19
+
+### Added
+- New `--no-traits` option for the `make:repository` command to generate repositories with complete implementation without using traits
+- Fixed "Undefined property: App\Repositories\UserRepository::$model" error when using traits
+- Improved repository structure using a single model property
+
+### Improved
+- Greater flexibility in repository generation with options for different implementation styles
+- Consistent handling of model properties across all generated repositories
+- Updated Spanish documentation with new options
+
 ## [1.5.0] - 2025-04-19
 
 ### Added
