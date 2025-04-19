@@ -627,9 +627,10 @@ interface BaseRepositoryInterface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Collection
      */
-    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection;
     
     /**
      * Find a record by ID
@@ -638,9 +639,10 @@ interface BaseRepositoryInterface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$appends Attributes to append
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Model|null
      */
-    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?Model;
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = [], array \$scopes = []): ?Model;
     
     /**
      * Find a record by a specific field
@@ -649,9 +651,10 @@ interface BaseRepositoryInterface
      * @param mixed \$value Value to search
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Model|null
      */
-    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?Model;
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = [], array \$scopes = []): ?Model;
     
     /**
      * Find records matching conditions
@@ -660,9 +663,10 @@ interface BaseRepositoryInterface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Collection
      */
-    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection;
     
     /**
      * Paginate records
@@ -672,9 +676,10 @@ interface BaseRepositoryInterface
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
      * @param array \$conditions Conditions to filter
+     * @param array \$scopes Array of scope names or callables to apply
      * @return LengthAwarePaginator
      */
-    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): LengthAwarePaginator;
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = [], array \$scopes = []): LengthAwarePaginator;
     
     /**
      * Create a new record
@@ -708,9 +713,10 @@ interface BaseRepositoryInterface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Model|null
      */
-    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?Model;
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): ?Model;
     
     /**
      * Create multiple records in a single operation
@@ -725,17 +731,19 @@ interface BaseRepositoryInterface
      * 
      * @param array \$conditions Conditions to filter records to update
      * @param array \$data Data to update
+     * @param array \$scopes Array of scope names or callables to apply
      * @return bool
      */
-    public function updateWhere(array \$conditions, array \$data): bool;
+    public function updateWhere(array \$conditions, array \$data, array \$scopes = []): bool;
     
     /**
      * Delete records in bulk based on conditions
      * 
      * @param array \$conditions Conditions to filter records to delete
+     * @param array \$scopes Array of scope names or callables to apply
      * @return bool|int Number of records deleted or false if failed
      */
-    public function deleteWhere(array \$conditions): bool|int;
+    public function deleteWhere(array \$conditions, array \$scopes = []): bool|int;
 }
 PHP;
     }
@@ -777,11 +785,40 @@ abstract class BaseRepository implements BaseRepositoryInterface
     }
     
     /**
+     * Apply scopes to the query builder
+     *
+     * @param \$query
+     * @param array \$scopes Array of scope names or callables to apply
+     * @return mixed
+     */
+    protected function applyScopes(\$query, array \$scopes = [])
+    {
+        foreach (\$scopes as \$scope) {
+            if (is_string(\$scope)) {
+                // Apply named scope defined in the model
+                \$query->\$scope();
+            } elseif (is_callable(\$scope)) {
+                // Apply closure scope
+                \$scope(\$query);
+            } elseif (is_array(\$scope) && count(\$scope) >= 1) {
+                // Apply scope with parameters - first element is scope name, rest are parameters
+                \$method = array_shift(\$scope);
+                \$query->\$method(...\$scope);
+            }
+        }
+        
+        return \$query;
+    }
+    
+    /**
      * {@inheritDoc}
      */
-    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection
     {
         \$query = \$this->model->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -799,9 +836,12 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * {@inheritDoc}
      */
-    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?Model
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = [], array \$scopes = []): ?Model
     {
         \$query = \$this->model->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -819,9 +859,12 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * {@inheritDoc}
      */
-    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?Model
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = [], array \$scopes = []): ?Model
     {
         \$query = \$this->model->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -833,9 +876,12 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * {@inheritDoc}
      */
-    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection
     {
         \$query = \$this->model->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -866,9 +912,12 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * {@inheritDoc}
      */
-    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): LengthAwarePaginator
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = [], array \$scopes = []): LengthAwarePaginator
     {
         \$query = \$this->model->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -934,9 +983,12 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * {@inheritDoc}
      */
-    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?Model
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): ?Model
     {
         \$query = \$this->model->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -983,9 +1035,12 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * {@inheritDoc}
      */
-    public function updateWhere(array \$conditions, array \$data): bool
+    public function updateWhere(array \$conditions, array \$data, array \$scopes = []): bool
     {
         \$query = \$this->model->query();
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         foreach (\$conditions as \$field => \$value) {
             if (is_array(\$value)) {
@@ -1006,9 +1061,12 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * {@inheritDoc}
      */
-    public function deleteWhere(array \$conditions): bool|int
+    public function deleteWhere(array \$conditions, array \$scopes = []): bool|int
     {
         \$query = \$this->model->query();
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         foreach (\$conditions as \$field => \$value) {
             if (is_array(\$value)) {

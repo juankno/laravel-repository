@@ -414,6 +414,243 @@ $userWithManyPosts = $userRepository->findWhere([
 $userWithData = $userRepository->find(1, ['*'], ['posts.comments', 'profile']);
 ```
 
+## Trabajando con Scopes de Eloquent
+
+Este paquete soporta el uso de scopes de Eloquent para simplificar tus consultas. Los scopes son una forma excelente de reutilizar lógica de consulta entre diferentes partes de tu aplicación.
+
+### Definiendo Scopes en tus Modelos
+
+Primero, define los scopes en tu modelo Eloquent siguiendo las convenciones de Laravel:
+
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class User extends Model
+{
+    /**
+     * Scope para usuarios activos
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'active');
+    }
+    
+    /**
+     * Scope para usuarios con un rol específico
+     */
+    public function scopeWithRole($query, $role)
+    {
+        return $query->where('role', $role);
+    }
+    
+    /**
+     * Scope para usuarios registrados recientemente
+     */
+    public function scopeRecentlyRegistered($query, $days = 30)
+    {
+        return $query->where('created_at', '>=', now()->subDays($days));
+    }
+}
+```
+
+### Usando Scopes en los Repositorios
+
+Una vez que los scopes están definidos en tu modelo, puedes usarlos en tus repositorios de varias maneras:
+
+#### 1. Scopes Simples
+
+```php
+// Obtener todos los usuarios activos
+$activeUsers = $userRepository->all(
+    ['*'],
+    [], // Sin relaciones
+    [], // Sin ordenamiento personalizado
+    ['active'] // Aplicar el scope 'active'
+);
+
+// Paginar usuarios activos
+$paginatedActiveUsers = $userRepository->paginate(
+    15, // Registros por página
+    ['*'], // Columnas
+    [], // Sin relaciones
+    [], // Sin ordenamiento
+    [], // Sin condiciones adicionales
+    ['active'] // Aplicar el scope 'active'
+);
+```
+
+#### 2. Scopes con Parámetros
+
+```php
+// Obtener administradores
+$admins = $userRepository->all(
+    ['*'], 
+    [],
+    [],
+    [['withRole', 'admin']] // Scope con parámetros: ['nombre_del_scope', ...parámetros]
+);
+
+// Obtener usuarios registrados en los últimos 7 días
+$newUsers = $userRepository->findWhere(
+    [], // Sin condiciones adicionales
+    ['*'],
+    [],
+    ['created_at' => 'desc'], // Ordenar por fecha de creación
+    [['recentlyRegistered', 7]] // Pasar '7' como parámetro al scope
+);
+```
+
+#### 3. Combinando Múltiples Scopes
+
+```php
+// Obtener administradores activos recientes
+$recentActiveAdmins = $userRepository->paginate(
+    10,
+    ['*'],
+    ['profile'], // Cargar relación 'profile'
+    ['name' => 'asc'],
+    [],
+    [
+        'active', // Scope sin parámetros
+        ['withRole', 'admin'], // Scope con un parámetro
+        ['recentlyRegistered', 14] // Scope con un parámetro
+    ]
+);
+```
+
+#### 4. Usando Scopes como Closures
+
+También puedes usar closures para aplicar condiciones dinámicas:
+
+```php
+// Buscar usuarios con lógica personalizada
+$filteredUsers = $userRepository->all(
+    ['*'],
+    ['posts'],
+    ['id' => 'desc'],
+    [
+        // Scope como closure
+        function ($query) use ($request) {
+            if ($request->has('search')) {
+                $query->where('name', 'like', "%{$request->search}%")
+                    ->orWhere('email', 'like', "%{$request->search}%");
+            }
+            
+            if ($request->has('date_from')) {
+                $query->where('created_at', '>=', $request->date_from);
+            }
+        }
+    ]
+);
+```
+
+### Utilizando Scopes en Métodos de Actualización y Eliminación
+
+También puedes aplicar scopes a los métodos de actualización y eliminación masiva:
+
+```php
+// Actualizar todos los usuarios inactivos
+$userRepository->updateWhere(
+    ['status' => 'inactive'],
+    ['needs_verification' => true],
+    [['recentlyRegistered', 180]] // Solo para usuarios registrados en los últimos 6 meses
+);
+
+// Eliminar usuarios con rol de invitado no verificados
+$deleted = $userRepository->deleteWhere(
+    ['is_verified' => false],
+    [['withRole', 'guest']]
+);
+```
+
+### Combinando Scopes y Condiciones Personalizadas
+
+Los scopes se integran perfectamente con las condiciones personalizadas:
+
+```php
+// Encuentra usuarios activos que se registraron en los últimos 30 días
+// y tienen un rol específico
+$users = $userRepository->findWhere(
+    [
+        ['registration_completed', true], // Condición personalizada
+        ['last_login_at', '>=', now()->subDays(7)] // Otra condición personalizada
+    ],
+    ['id', 'name', 'email', 'last_login_at'],
+    ['profile'], // Cargar relación profile
+    ['created_at' => 'desc'], // Ordenar por fecha de creación (descendente)
+    [
+        'active', // Aplicar scope 'active'
+        ['withRole', 'customer'], // Aplicar scope 'withRole' con parámetro
+        ['recentlyRegistered', 30] // Aplicar scope 'recentlyRegistered' con parámetro
+    ]
+);
+```
+
+### Casos de Uso Prácticos
+
+#### Ejemplo en un Controlador
+
+```php
+class UserController extends Controller
+{
+    protected $userRepository;
+    
+    public function __construct(UserRepositoryInterface $userRepository)
+    {
+        $this->userRepository = $userRepository;
+    }
+    
+    public function index(Request $request)
+    {
+        // Preparación de scopes dinámicos según parámetros de la petición
+        $scopes = [];
+        
+        if ($request->filter === 'active') {
+            $scopes[] = 'active';
+        }
+        
+        if ($request->role) {
+            $scopes[] = ['withRole', $request->role];
+        }
+        
+        if ($request->recent_days) {
+            $scopes[] = ['recentlyRegistered', (int) $request->recent_days];
+        }
+        
+        // Agregar un scope anónimo para búsqueda
+        if ($request->search) {
+            $scopes[] = function($query) use ($request) {
+                $query->where('name', 'like', "%{$request->search}%")
+                    ->orWhere('email', 'like', "%{$request->search}%");
+            };
+        }
+        
+        // Paginación con los scopes aplicados
+        $users = $this->userRepository->paginate(
+            $request->per_page ?? 15,
+            ['*'],
+            ['profile', 'posts'],
+            [$request->sort_by ?? 'created_at' => $request->sort_direction ?? 'desc'],
+            [], // Sin condiciones WHERE adicionales
+            $scopes
+        );
+        
+        return view('users.index', compact('users'));
+    }
+}
+```
+
+## Recomendaciones para usar Scopes
+
+* **Reutilización**: Crea scopes para consultas frecuentes para mantener tu código DRY.
+* **Nombres Descriptivos**: Usa nombres claros para tus scopes que indiquen lo que hacen.
+* **Scopes vs. Condiciones**: Para lógica simple, usa condiciones directas. Para lógica compleja o reutilizable, usa scopes.
+* **Testing**: Los scopes facilitan las pruebas unitarias de tu lógica de consulta.
+
 ## Ejemplo de Consultas Complejas
 
 ```php
