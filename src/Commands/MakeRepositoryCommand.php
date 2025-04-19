@@ -277,6 +277,7 @@ use {$modelClass};
 class {$name} {$extendsBaseRepository}implements {$name}Interface
 {
     protected \${$modelVariable};
+    protected \$model;
 
 {$constructorContent}
     // Define your custom methods here
@@ -306,6 +307,7 @@ use {$modelClass};
 class {$name} {$extendsBaseRepository}implements {$name}Interface
 {
     protected \${$modelVariable};
+    protected \$model;
 {$traitsContent}
 
 {$constructorContent}
@@ -344,6 +346,7 @@ PHP;
     public function __construct({$model} \${$modelVariable})
     {
         \$this->{$modelVariable} = \${$modelVariable};
+        \$this->model = \${$modelVariable};
     }
 
 PHP;
@@ -356,6 +359,7 @@ PHP;
     {
         parent::__construct(\${$modelVariable});
         \$this->{$modelVariable} = \${$modelVariable};
+        \$this->model = \${$modelVariable};
     }
 
 PHP;
