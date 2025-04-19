@@ -6,14 +6,16 @@ return [
     | Repository Cache
     |--------------------------------------------------------------------------
     |
-    | This configuration controls the caching behavior of repository bindings
-    | to improve performance.
+    | This configuration controls the caching behavior of repositories
+    | to improve performance of queries.
     |
     */
     'cache' => [
         'enabled' => true,
-        'ttl' => 60, // Time in minutes that bindings will be cached
-        'key' => 'laravel_repository_bindings',
+        'ttl' => 60, // Time in minutes that results will be cached
+        'key_prefix' => 'laravel_repository_',
+        'driver' => null, // null = use default driver, 'redis', 'file', etc.
+        'skip_in_development' => true, // Don't use cache in development (APP_ENV=local)
     ],
 
     /*
@@ -41,6 +43,8 @@ return [
     'relations' => [
         'auto_load_count' => true, // Automatically add withCount for hasMany/belongsToMany relations
         'max_eager_relations' => 5, // Maximum number of relations for eager loading before using lazy loading
+        'allow_nested_relations' => true, // Allow loading nested relations with dot notation (e.g. 'posts.comments')
+        'debug_relations' => false, // Log relation queries for debugging
     ],
 
     /*
@@ -54,6 +58,8 @@ return [
     'query' => [
         'use_direct_update' => true, // Use direct update instead of find + update
         'use_direct_delete' => true, // Use direct delete instead of find + delete
+        'chunk_size' => 1000, // Chunk size for large queries
+        'optimize_selects' => true, // Only select necessary columns when possible
     ],
 
     /*
@@ -70,6 +76,29 @@ return [
             // Example: 'active', 'visible'
         ],
         'detect_n_plus_one' => false, // Detect potential N+1 problems in scopes (development only)
+        'auto_apply' => [], // Scopes that will be automatically applied to all queries
+    ],
+    
+    /*
+    |--------------------------------------------------------------------------
+    | Traits
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for repository traits.
+    |
+    */
+    'traits' => [
+        'always_include' => [
+            'CrudOperationsTrait',
+            'QueryableTrait',
+            'RelationshipTrait',
+        ],
+        'optional' => [
+            'ScopableTrait',
+            'PaginationTrait',
+            'TransactionTrait',
+        ],
+        'namespace' => 'Juankno\\Repository\\Traits',
     ],
     
     /*
@@ -93,5 +122,22 @@ return [
             'interface' => 'App\\Repositories\\Contracts\\PostRepositoryInterface',
             'implementation' => 'App\\Repositories\\PostRepository',
         ],
+    ],
+    
+    /*
+    |--------------------------------------------------------------------------
+    | Code Generation
+    |--------------------------------------------------------------------------
+    |
+    | Options for code generation when creating repositories.
+    |
+    */
+    'generation' => [
+        'add_docblocks' => true, // Add documentation blocks to generated methods
+        'use_types' => true, // Use PHP 7.4+ types in generated methods
+        'use_return_types' => true, // Use PHP 7.4+ return types
+        'default_model_namespace' => 'App\\Models', // Default namespace for models
+        'repository_namespace' => 'App\\Repositories', // Default namespace for repositories
+        'contract_namespace' => 'App\\Repositories\\Contracts', // Default namespace for interfaces
     ],
 ];

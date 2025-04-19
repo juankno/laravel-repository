@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2025-04-19
+
+### Added
+- Six specialized traits to make repositories more modular and maintainable:
+  - `QueryableTrait`: For handling database queries
+  - `RelationshipTrait`: For optimized relationship loading
+  - `ScopableTrait`: For applying Eloquent scopes
+  - `CrudOperationsTrait`: For basic CRUD operations
+  - `PaginationTrait`: For different pagination methods
+  - `TransactionTrait`: For database transaction handling
+- Updated `make:repository` command to generate repositories using traits
+- Comprehensive documentation for traits in README.traits.md
+- Expanded configuration options in repository.php
+- Support for cursor pagination via the new `cursorPaginate()` method
+- English translations for all documentation
+
+### Improved
+- Enhanced modularity allowing developers to choose only needed functionality
+- Better separation of concerns with specialized traits
+- Code organization and maintainability
+- Repository configuration with more customization options
+- Performance optimizations for relationship loading and queries
+
 ## [1.4.0] - 2025-04-18
 
 ### Added
