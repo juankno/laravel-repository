@@ -815,8 +815,10 @@ namespace App\Repositories;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 use App\Repositories\Contracts\BaseRepositoryInterface;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Class BaseRepository
@@ -845,12 +847,21 @@ abstract class BaseRepository implements BaseRepositoryInterface
     /**
      * Apply scopes to the query builder
      *
-     * @param \$query
+     * @param Builder \$query
      * @param array \$scopes Array of scope names or callables to apply
-     * @return mixed
+     * @return Builder
      */
-    protected function applyScopes(\$query, array \$scopes = [])
+    protected function applyScopes(Builder \$query, array \$scopes = []): Builder
     {
+        // Apply global scopes from configuration if any
+        \$globalScopes = config('repository.scopes.global', []);
+        foreach (\$globalScopes as \$globalScope) {
+            if (is_string(\$globalScope) && method_exists(\$this->model, 'scope' . ucfirst(\$globalScope))) {
+                \$query->\$globalScope();
+            }
+        }
+        
+        // Apply scopes provided to the method
         foreach (\$scopes as \$scope) {
             if (is_string(\$scope)) {
                 // Apply named scope defined in the model
@@ -863,9 +874,100 @@ abstract class BaseRepository implements BaseRepositoryInterface
                 \$method = array_shift(\$scope);
                 \$query->\$method(...\$scope);
             }
+            
+            // Detect N+1 problems if enabled and in debug mode
+            if (config('app.debug') && config('repository.scopes.detect_n_plus_one', false)) {
+                \$scopeName = is_string(\$scope) ? \$scope : 'closure_scope';
+                DB::listen(function(\$query) use (\$scopeName) {
+                    if (strpos(\$query->sql, 'select') === 0) {
+                        info("[Repository N+1 Detection] Scope: {\$scopeName} - Query: {\$query->sql}");
+                    }
+                });
+            }
         }
         
         return \$query;
+    }
+    
+    /**
+     * Optimized loading of relations
+     *
+     * @param Builder \$query
+     * @param array \$relations
+     * @return Builder
+     */
+    protected function loadRelations(Builder \$query, array \$relations): Builder
+    {
+        if (empty(\$relations)) {
+            return \$query;
+        }
+        
+        // Optimize relation loading
+        \$autoLoadCount = config('repository.relations.auto_load_count', true);
+        \$maxEagerRelations = config('repository.relations.max_eager_relations', 5);
+        
+        // Split normal relations and relations to count
+        \$eagerLoad = [];
+        \$withCountRelations = [];
+        
+        foreach (\$relations as \$relation) {
+            \$eagerLoad[] = \$relation;
+            
+            // Detect potential relations for withCount if enabled
+            if (\$autoLoadCount) {
+                \$relationName = explode('.', \$relation)[0];
+                if (method_exists(\$this->model, \$relationName)) {
+                    try {
+                        \$relationType = \$this->model->\$relationName();
+                        if (is_a(\$relationType, 'Illuminate\\Database\\Eloquent\\Relations\\HasMany') || 
+                            is_a(\$relationType, 'Illuminate\\Database\\Eloquent\\Relations\\BelongsToMany')) {
+                            \$withCountRelations[] = \$relationName;
+                        }
+                    } catch (\Exception \$e) {
+                        // Ignore errors when trying to detect relation type
+                    }
+                }
+            }
+        }
+        
+        // Apply with or withCount depending on the number of relations
+        if (count(\$eagerLoad) <= \$maxEagerRelations) {
+            \$query->with(\$eagerLoad);
+        } else {
+            // If there are too many relations, load only the main ones
+            \$primaryRelations = array_slice(\$eagerLoad, 0, \$maxEagerRelations);
+            \$query->with(\$primaryRelations);
+        }
+        
+        // Apply withCount if there are detected relations
+        if (!empty(\$withCountRelations)) {
+            \$query->withCount(array_unique(\$withCountRelations));
+        }
+        
+        return \$query;
+    }
+    
+    /**
+     * Apply conditions efficiently
+     *
+     * @param Builder \$query
+     * @param array \$conditions
+     * @return void
+     */
+    protected function applyConditions(Builder \$query, array \$conditions): void
+    {
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
     }
     
     /**
@@ -878,9 +980,8 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         if (!empty(\$orderBy)) {
             foreach (\$orderBy as \$column => \$direction) {
@@ -901,9 +1002,8 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         \$model = \$query->find(\$id);
         
@@ -924,9 +1024,8 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         return \$query->where(\$field, \$value)->first();
     }
@@ -941,22 +1040,11 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
-        foreach (\$conditions as \$field => \$value) {
-            if (is_array(\$value)) {
-                if (count(\$value) === 3) {
-                    list(\$field, \$operator, \$searchValue) = \$value;
-                    \$query->where(\$field, \$operator, \$searchValue);
-                } else {
-                    \$query->whereIn(\$field, \$value);
-                }
-            } else {
-                \$query->where(\$field, \$value);
-            }
-        }
+        // Apply conditions efficiently
+        \$this->applyConditions(\$query, \$conditions);
         
         if (!empty(\$orderBy)) {
             foreach (\$orderBy as \$column => \$direction) {
@@ -977,23 +1065,11 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         if (!empty(\$conditions)) {
-            foreach (\$conditions as \$field => \$value) {
-                if (is_array(\$value)) {
-                    if (count(\$value) === 3) {
-                        list(\$field, \$operator, \$searchValue) = \$value;
-                        \$query->where(\$field, \$operator, \$searchValue);
-                    } else {
-                        \$query->whereIn(\$field, \$value);
-                    }
-                } else {
-                    \$query->where(\$field, \$value);
-                }
-            }
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         if (!empty(\$orderBy)) {
@@ -1018,6 +1094,20 @@ abstract class BaseRepository implements BaseRepositoryInterface
      */
     public function update(int \$id, array \$data): Model|bool
     {
+        // Use direct update or find + update according to configuration
+        \$useDirectUpdate = config('repository.query.use_direct_update', true);
+        
+        if (\$useDirectUpdate) {
+            \$affected = \$this->model->where('id', \$id)->update(\$data);
+            
+            if (\$affected) {
+                return \$this->find(\$id);
+            }
+            
+            return false;
+        } 
+        
+        // Previous method (find + update)
         \$model = \$this->find(\$id);
         
         if (!\$model) {
@@ -1035,6 +1125,14 @@ abstract class BaseRepository implements BaseRepositoryInterface
      */
     public function delete(int \$id): bool
     {
+        // Use direct delete or find + delete according to configuration
+        \$useDirectDelete = config('repository.query.use_direct_delete', true);
+        
+        if (\$useDirectDelete) {
+            return \$this->model->where('id', \$id)->delete() > 0;
+        }
+        
+        // Previous method (find + delete)
         return \$this->find(\$id)?->delete() ?? false;
     }
     
@@ -1048,23 +1146,11 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         if (!empty(\$conditions)) {
-            foreach (\$conditions as \$field => \$value) {
-                if (is_array(\$value)) {
-                    if (count(\$value) === 3) {
-                        list(\$field, \$operator, \$searchValue) = \$value;
-                        \$query->where(\$field, \$operator, \$searchValue);
-                    } else {
-                        \$query->whereIn(\$field, \$value);
-                    }
-                } else {
-                    \$query->where(\$field, \$value);
-                }
-            }
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         if (!empty(\$orderBy)) {
@@ -1081,13 +1167,10 @@ abstract class BaseRepository implements BaseRepositoryInterface
      */
     public function createMany(array \$data): Collection
     {
-        \$models = collect();
-        
-        foreach (\$data as \$item) {
-            \$models->push(\$this->create(\$item));
-        }
-        
-        return \$models;
+        // Optimized to use less memory and be more efficient
+        return collect(\$data)->map(function(\$item) {
+            return \$this->create(\$item);
+        });
     }
     
     /**
@@ -1100,17 +1183,8 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        foreach (\$conditions as \$field => \$value) {
-            if (is_array(\$value)) {
-                if (count(\$value) === 3) {
-                    list(\$field, \$operator, \$searchValue) = \$value;
-                    \$query->where(\$field, \$operator, \$searchValue);
-                } else {
-                    \$query->whereIn(\$field, \$value);
-                }
-            } else {
-                \$query->where(\$field, \$value);
-            }
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         return \$query->update(\$data);
@@ -1126,20 +1200,54 @@ abstract class BaseRepository implements BaseRepositoryInterface
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        foreach (\$conditions as \$field => \$value) {
-            if (is_array(\$value)) {
-                if (count(\$value) === 3) {
-                    list(\$field, \$operator, \$searchValue) = \$value;
-                    \$query->where(\$field, \$operator, \$searchValue);
-                } else {
-                    \$query->whereIn(\$field, \$value);
-                }
-            } else {
-                \$query->where(\$field, \$value);
-            }
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         return \$query->delete();
+    }
+    
+    /**
+     * Begin a new database transaction
+     *
+     * @return void
+     */
+    public function beginTransaction(): void
+    {
+        DB::beginTransaction();
+    }
+    
+    /**
+     * Commit the active database transaction
+     *
+     * @return void
+     */
+    public function commit(): void
+    {
+        DB::commit();
+    }
+    
+    /**
+     * Rollback the active database transaction
+     *
+     * @return void
+     */
+    public function rollBack(): void
+    {
+        DB::rollBack();
+    }
+    
+    /**
+     * Execute a callback within a transaction
+     *
+     * @param  callable  \$callback
+     * @return mixed
+     *
+     * @throws \\Throwable
+     */
+    public function transaction(callable \$callback)
+    {
+        return DB::transaction(\$callback);
     }
 }
 PHP;

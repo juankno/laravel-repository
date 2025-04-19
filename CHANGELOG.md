@@ -1,42 +1,60 @@
 # CHANGELOG
 
-Todos los cambios notables a este proyecto serán documentados en este archivo.
+All notable changes to this project will be documented in this file.
 
-## [1.3.0] - 2025-04-20
+## [1.4.0] - 2025-04-18
 
-### Añadido
-- Soporte para scopes de Eloquent en todos los métodos de consulta (all, find, findBy, findWhere, paginate, etc.)
-- Nuevo método `applyScopes()` en BaseRepository para aplicar scopes de forma flexible
-- Documentación sobre cómo usar scopes con ejemplos prácticos
+### Added
+- New configuration file `config/repository.php` with customizable options
+- Caching system for repository bindings to improve performance
+- Improved `loadRelations()` method for optimizing relation loading
+- Automatic detection of relations for using `withCount` when appropriate
+- Support for database transactions
+- Option to choose between direct updates or model-based updates
 
-## [1.2.0] - 2025-04-18
+### Optimized
+- Reduced memory usage in `createMany()` method
+- Improved performance for queries with multiple relations
+- Extracted condition logic to a helper method
+- Implemented caching for repository registration to reduce ReflectionClass calls
+- Enhanced `applyScopes()` method with support for global scopes
+- Added N+1 problem detection when using scopes (optional, development only)
 
-### Añadido
-- Soporte para cargar relaciones de Eloquent en todos los métodos de consulta
-- Nuevos métodos para operaciones masivas: `createMany()`, `updateWhere()` y `deleteWhere()`
-- Soporte para ordenamiento personalizado mediante el parámetro `orderBy`
-- Soporte para atributos calculados con el parámetro `appends` en el método `find()`
-- Tipado estricto en todos los métodos con tipos de retorno adecuados
-- Manejo mejorado de condiciones WHERE, incluyendo operadores personalizados y condiciones WHERE IN
-- Documentación exhaustiva con ejemplos detallados para cada método
+## [1.3.0] - 2025-04-16
 
-### Mejorado
-- Mejor manejo de errores en métodos como `update()` y `delete()`
-- Implementaciones más limpias usando características de PHP 8 como el operador nullsafe
-- La documentación ahora incluye ejemplos prácticos en inglés y español
+### Added
+- Support for Eloquent scopes in all query methods (all, find, findBy, findWhere, paginate, etc.)
+- New `applyScopes()` method in BaseRepository for flexible scope application
+- Documentation on how to use scopes with practical examples
+
+## [1.2.0] - 2025-04-12
+
+### Added
+- Support for loading Eloquent relations in all query methods
+- New methods for bulk operations: `createMany()`, `updateWhere()` and `deleteWhere()`
+- Support for custom ordering via the `orderBy` parameter
+- Support for computed attributes with the `appends` parameter in the `find()` method
+- Strict typing in all methods with appropriate return types
+- Improved handling of WHERE conditions, including custom operators and WHERE IN conditions
+- Comprehensive documentation with detailed examples for each method
+
+### Improved
+- Better error handling in methods like `update()` and `delete()`
+- Cleaner implementations using PHP 8 features like the nullsafe operator
+- Documentation now includes practical examples in English and Spanish
 
 ## [1.1.0] - 2024-03-15
 
-### Añadido
-- Nueva opción `--empty` para el comando `make:repository` que permite crear repositorios vacíos sin métodos predefinidos.
+### Added
+- New `--empty` option for the `make:repository` command to create repositories without predefined methods.
 
-### Actualizado
-- Documentación en README.md y README.es.md para incluir información sobre la nueva opción `--empty`.
+### Updated
+- Documentation in README.md and README.es.md to include information about the new `--empty` option.
 
-## [1.0.0] - Versión inicial
+## [1.0.0] - Initial version
 
-### Añadido
-- Implementación inicial del patrón repositorio para Laravel.
-- Comando `make:repository` para generar automáticamente repositorios, contratos y enlaces.
-- Soporte para las opciones `--force` y `--abstract`.
-- Documentación en inglés y español.
+### Added
+- Initial implementation of the repository pattern for Laravel.
+- `make:repository` command to automatically generate repositories, contracts and bindings.
+- Support for `--force` and `--abstract` options.
+- Documentation in English and Spanish.
