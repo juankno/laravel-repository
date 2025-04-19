@@ -174,10 +174,15 @@ class RepositoryServiceProvider extends ServiceProvider
             return $bindings;
         }
 
+        // Get the configured interface folder name
+        $interfacesFolderName = config('repository.structure.interfaces_folder', 'Contracts');
+
         try {
             foreach (File::allFiles($directory) as $file) {
-                // Skip contract directories
-                if (Str::contains($file->getRelativePath(), 'Contracts')) {
+                // Skip interface directories
+                if (Str::contains($file->getRelativePath(), $interfacesFolderName) || 
+                    (config('repository.structure.validate_interface_folders', true) && 
+                     Str::contains($file->getRelativePath(), 'Interfaces'))) {
                     continue;
                 }
 
@@ -261,7 +266,10 @@ class RepositoryServiceProvider extends ServiceProvider
             ? Str::replaceLast('Repository', 'RepositoryInterface', $baseName)
             : $baseName . 'Interface';
 
-        // Replace 'Repositories' with 'Repositories\Contracts' in the namespace
-        return str_replace('Repositories\\', 'Repositories\\Contracts\\', $namespace) . '\\' . $interfaceName;
+        // Get the configured interface folder name
+        $interfacesFolderName = config('repository.structure.interfaces_folder', 'Contracts');
+        
+        // Replace 'Repositories' with 'Repositories\{interfacesFolderName}' in the namespace
+        return str_replace('Repositories\\', "Repositories\\{$interfacesFolderName}\\", $namespace) . '\\' . $interfaceName;
     }
 }

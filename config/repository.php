@@ -34,6 +34,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Repository Structure
+    |--------------------------------------------------------------------------
+    |
+    | Configure the folder structure for repositories and interfaces/contracts.
+    |
+    */
+    'structure' => [
+        'interfaces_folder' => 'Contracts', // Can be 'Contracts' or 'Interfaces' or any custom folder name
+        'validate_interface_folders' => true, // Check if both potential interface folders exist before creating
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Relation Loading Options
     |--------------------------------------------------------------------------
     |

@@ -35,17 +35,37 @@ class MakeRepositoryCommand extends Command
             $repositoryName .= 'Repository';
         }
 
-        $repositoryDirectory = app_path('Repositories/' . implode('/', $pathParts));
-        $contractsDirectory = app_path('Repositories/Contracts/' . implode('/', $pathParts));
+        // Obtener la carpeta configurada para interfaces
+        $interfacesFolderName = config('repository.structure.interfaces_folder', 'Contracts');
+        $validateFolders = config('repository.structure.validate_interface_folders', true);
 
-        foreach ([$repositoryDirectory, $contractsDirectory] as $dir) {
-            if (!File::isDirectory($dir)) {
-                File::makeDirectory($dir, 0755, true);
+        $repositoryDirectory = app_path('Repositories/' . implode('/', $pathParts));
+        $interfacesDirectory = app_path("Repositories/{$interfacesFolderName}/" . implode('/', $pathParts));
+
+        // Crear los directorios necesarios
+        if (!File::isDirectory($repositoryDirectory)) {
+            File::makeDirectory($repositoryDirectory, 0755, true);
+        }
+
+        // Verificar si existe un directorio alternativo para interfaces
+        $alternativeInterfaceDirectory = app_path('Repositories/Interfaces/' . implode('/', $pathParts));
+        $interfaceDirectoryExists = File::isDirectory($interfacesDirectory);
+        $alternativeDirectoryExists = File::isDirectory($alternativeInterfaceDirectory);
+
+        if ($validateFolders && !$interfaceDirectoryExists && $alternativeDirectoryExists) {
+            // Si se debe validar y la carpeta configurada no existe pero existe la alternativa
+            $this->info("Using existing interface directory: Repositories/Interfaces");
+            $interfacesDirectory = $alternativeInterfaceDirectory;
+            $interfacesFolderName = 'Interfaces';
+        } else {
+            // En caso contrario, usar la carpeta configurada
+            if (!File::isDirectory($interfacesDirectory)) {
+                File::makeDirectory($interfacesDirectory, 0755, true);
             }
         }
 
         $repositoryPath = "{$repositoryDirectory}/{$repositoryName}.php";
-        $interfacePath = "{$contractsDirectory}/{$repositoryName}Interface.php";
+        $interfacePath = "{$interfacesDirectory}/{$repositoryName}Interface.php";
 
         if ($this->argument('model')) {
             $fullModelClass = Str::contains($modelArg, '\\') 
@@ -62,25 +82,31 @@ class MakeRepositoryCommand extends Command
         if (File::exists($interfacePath) && !$this->option('force')) {
             $this->warn("The interface {$repositoryName}Interface already exists.");
         } else {
-            File::put($interfacePath, $this->getInterfaceContent($repositoryName, implode('\\', $pathParts)));
-            $this->info("Interface {$repositoryName}Interface created successfully.");
+            File::put($interfacePath, $this->getInterfaceContent($repositoryName, implode('\\', $pathParts), $interfacesFolderName));
+            $this->info("Interface {$repositoryName}Interface created successfully in {$interfacesFolderName} folder.");
         }
 
         if (File::exists($repositoryPath) && !$this->option('force')) {
             $this->warn("The repository {$repositoryName} already exists.");
         } else {
-            File::put($repositoryPath, $this->getRepositoryContent($repositoryName, $model, implode('\\', $pathParts)));
+            File::put($repositoryPath, $this->getRepositoryContent($repositoryName, $model, implode('\\', $pathParts), $interfacesFolderName));
             $this->info("Repository {$repositoryName} created successfully.");
         }
 
         if ($this->option('abstract') && !File::exists(app_path('Repositories/BaseRepository.php'))) {
-            $this->generateBaseRepository();
+            $this->generateBaseRepository($interfacesFolderName);
+        }
+
+        // Actualizar la configuración si se está usando una carpeta alternativa
+        if ($interfacesFolderName !== config('repository.structure.interfaces_folder')) {
+            $this->info("Note: Used '{$interfacesFolderName}' for interfaces instead of configured value.");
+            $this->info("You may want to update the 'repository.structure.interfaces_folder' config value.");
         }
     }
 
-    protected function getInterfaceContent($name, $namespace)
+    protected function getInterfaceContent($name, $namespace, $interfacesFolderName = 'Contracts')
     {
-        $namespace = $namespace ? "App\\Repositories\\Contracts\\{$namespace}" : "App\\Repositories\\Contracts";
+        $namespace = $namespace ? "App\\Repositories\\{$interfacesFolderName}\\{$namespace}" : "App\\Repositories\\{$interfacesFolderName}";
 
         // If the --empty option is active, create an empty interface
         if ($this->option('empty')) {
@@ -238,10 +264,10 @@ interface {$name}Interface
 PHP;
     }
 
-    protected function getRepositoryContent($name, $model, $namespace)
+    protected function getRepositoryContent($name, $model, $namespace, $interfacesFolderName = 'Contracts')
     {
         $namespace = $namespace ? "App\\Repositories\\{$namespace}" : "App\\Repositories";
-        $contractNamespace = $namespace ? str_replace("App\\Repositories", "App\\Repositories\\Contracts", $namespace) : "App\\Repositories\\Contracts";
+        $contractNamespace = $namespace ? str_replace("App\\Repositories", "App\\Repositories\\{$interfacesFolderName}", $namespace) : "App\\Repositories\\{$interfacesFolderName}";
         
         if (Str::contains($model, '\\')) {
             $modelClass = $model;
@@ -696,10 +722,10 @@ PHP;
 PHP;
     }
 
-    protected function generateBaseRepository()
+    protected function generateBaseRepository($interfacesFolderName = 'Contracts')
     {
         $baseRepositoryDir = app_path('Repositories');
-        $baseContractsDir = app_path('Repositories/Contracts');
+        $baseContractsDir = app_path("Repositories/{$interfacesFolderName}");
         
         if (!File::isDirectory($baseRepositoryDir)) {
             File::makeDirectory($baseRepositoryDir, 0755, true);
@@ -710,8 +736,8 @@ PHP;
         }
         
         File::put(
-            app_path('Repositories/Contracts/BaseRepositoryInterface.php'),
-            $this->getBaseInterfaceContent()
+            app_path("Repositories/{$interfacesFolderName}/BaseRepositoryInterface.php"),
+            $this->getBaseInterfaceContent($interfacesFolderName)
         );
         
         File::put(
@@ -722,12 +748,12 @@ PHP;
         $this->info('BaseRepository and BaseRepositoryInterface generated successfully.');
     }
     
-    protected function getBaseInterfaceContent()
+    protected function getBaseInterfaceContent($interfacesFolderName = 'Contracts')
     {
         return <<<PHP
 <?php
 
-namespace App\Repositories\Contracts;
+namespace App\Repositories\\{$interfacesFolderName};
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -735,7 +761,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 
 /**
  * Interface BaseRepositoryInterface
- * @package App\Repositories\Contracts
+ * @package App\Repositories\\{$interfacesFolderName}
  */
 interface BaseRepositoryInterface
 {
