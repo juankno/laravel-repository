@@ -74,7 +74,7 @@ Este comando genera un repositorio junto con su contrato e implementación.
 
 #### **Uso:**
 ```sh
-php artisan make:repository {name} {model?} {--force} {--abstract} {--empty}
+php artisan make:repository {name} {model?} {--force} {--abstract} {--empty} {--no-traits}
 ```
 
 #### **Argumentos:**
@@ -85,6 +85,7 @@ php artisan make:repository {name} {model?} {--force} {--abstract} {--empty}
 - `--force`: Sobrescribe archivos existentes.
 - `--abstract`: Genera también clases base abstractas.
 - `--empty`: Crea un repositorio vacío sin métodos predefinidos.
+- `--no-traits`: Crea un repositorio con toda la implementación en la clase sin utilizar traits.
 
 #### **Ejemplos:**
 
@@ -103,6 +104,9 @@ php artisan make:repository UserRepository User --force
 
 # Crear un repositorio vacío sin métodos predefinidos
 php artisan make:repository UserRepository --empty
+
+# Crear un repositorio con implementación completa sin usar traits
+php artisan make:repository UserRepository --no-traits
 ```
 
 ## Métodos Disponibles en el Repositorio
