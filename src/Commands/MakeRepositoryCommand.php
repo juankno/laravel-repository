@@ -342,6 +342,15 @@ PHP;
      */
     protected function applyScopes(\$query, array \$scopes = [])
     {
+        // Apply global scopes from configuration if any
+        \$globalScopes = config('repository.scopes.global', []);
+        foreach (\$globalScopes as \$globalScope) {
+            if (is_string(\$globalScope) && method_exists(\$this->{$modelVariable}, 'scope' . ucfirst(\$globalScope))) {
+                \$query->\$globalScope();
+            }
+        }
+        
+        // Apply scopes provided to the method
         foreach (\$scopes as \$scope) {
             if (is_string(\$scope)) {
                 // Apply named scope defined in the model
@@ -354,9 +363,100 @@ PHP;
                 \$method = array_shift(\$scope);
                 \$query->\$method(...\$scope);
             }
+            
+            // Detect N+1 problems if enabled and in debug mode
+            if (config('app.debug') && config('repository.scopes.detect_n_plus_one', false)) {
+                \$scopeName = is_string(\$scope) ? \$scope : 'closure_scope';
+                \Illuminate\Support\Facades\DB::listen(function(\$query) use (\$scopeName) {
+                    if (strpos(\$query->sql, 'select') === 0) {
+                        info("[Repository N+1 Detection] Scope: {\$scopeName} - Query: {\$query->sql}");
+                    }
+                });
+            }
         }
         
         return \$query;
+    }
+    
+    /**
+     * Optimized loading of relations
+     *
+     * @param \$query
+     * @param array \$relations
+     * @return mixed
+     */
+    protected function loadRelations(\$query, array \$relations)
+    {
+        if (empty(\$relations)) {
+            return \$query;
+        }
+        
+        // Optimize relation loading
+        \$autoLoadCount = config('repository.relations.auto_load_count', true);
+        \$maxEagerRelations = config('repository.relations.max_eager_relations', 5);
+        
+        // Split normal relations and relations to count
+        \$eagerLoad = [];
+        \$withCountRelations = [];
+        
+        foreach (\$relations as \$relation) {
+            \$eagerLoad[] = \$relation;
+            
+            // Detect potential relations for withCount if enabled
+            if (\$autoLoadCount) {
+                \$relationName = explode('.', \$relation)[0];
+                if (method_exists(\$this->{$modelVariable}, \$relationName)) {
+                    try {
+                        \$relationType = \$this->{$modelVariable}->\$relationName();
+                        if (is_a(\$relationType, 'Illuminate\\Database\\Eloquent\\Relations\\HasMany') || 
+                            is_a(\$relationType, 'Illuminate\\Database\\Eloquent\\Relations\\BelongsToMany')) {
+                            \$withCountRelations[] = \$relationName;
+                        }
+                    } catch (\Exception \$e) {
+                        // Ignore errors when trying to detect relation type
+                    }
+                }
+            }
+        }
+        
+        // Apply with or withCount depending on the number of relations
+        if (count(\$eagerLoad) <= \$maxEagerRelations) {
+            \$query->with(\$eagerLoad);
+        } else {
+            // If there are too many relations, load only the main ones
+            \$primaryRelations = array_slice(\$eagerLoad, 0, \$maxEagerRelations);
+            \$query->with(\$primaryRelations);
+        }
+        
+        // Apply withCount if there are detected relations
+        if (!empty(\$withCountRelations)) {
+            \$query->withCount(array_unique(\$withCountRelations));
+        }
+        
+        return \$query;
+    }
+    
+    /**
+     * Apply conditions efficiently
+     *
+     * @param \$query
+     * @param array \$conditions
+     * @return void
+     */
+    protected function applyConditions(\$query, array \$conditions): void
+    {
+        foreach (\$conditions as \$field => \$value) {
+            if (is_array(\$value)) {
+                if (count(\$value) === 3) {
+                    list(\$field, \$operator, \$searchValue) = \$value;
+                    \$query->where(\$field, \$operator, \$searchValue);
+                } else {
+                    \$query->whereIn(\$field, \$value);
+                }
+            } else {
+                \$query->where(\$field, \$value);
+            }
+        }
     }
 
     /**
@@ -369,9 +469,8 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         if (!empty(\$orderBy)) {
             foreach (\$orderBy as \$column => \$direction) {
@@ -392,9 +491,8 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         \$model = \$query->find(\$id);
         
@@ -415,9 +513,8 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         return \$query->where(\$field, \$value)->first();
     }
@@ -432,22 +529,11 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
-        foreach (\$conditions as \$field => \$value) {
-            if (is_array(\$value)) {
-                if (count(\$value) === 3) {
-                    list(\$field, \$operator, \$searchValue) = \$value;
-                    \$query->where(\$field, \$operator, \$searchValue);
-                } else {
-                    \$query->whereIn(\$field, \$value);
-                }
-            } else {
-                \$query->where(\$field, \$value);
-            }
-        }
+        // Apply conditions efficiently
+        \$this->applyConditions(\$query, \$conditions);
         
         if (!empty(\$orderBy)) {
             foreach (\$orderBy as \$column => \$direction) {
@@ -468,23 +554,11 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         if (!empty(\$conditions)) {
-            foreach (\$conditions as \$field => \$value) {
-                if (is_array(\$value)) {
-                    if (count(\$value) === 3) {
-                        list(\$field, \$operator, \$searchValue) = \$value;
-                        \$query->where(\$field, \$operator, \$searchValue);
-                    } else {
-                        \$query->whereIn(\$field, \$value);
-                    }
-                } else {
-                    \$query->where(\$field, \$value);
-                }
-            }
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         if (!empty(\$orderBy)) {
@@ -509,6 +583,20 @@ PHP;
      */
     public function update(int \$id, array \$data): \Illuminate\Database\Eloquent\Model|bool
     {
+        // Use direct update or find + update according to configuration
+        \$useDirectUpdate = config('repository.query.use_direct_update', true);
+        
+        if (\$useDirectUpdate) {
+            \$affected = \$this->{$modelVariable}->where('id', \$id)->update(\$data);
+            
+            if (\$affected) {
+                return \$this->find(\$id);
+            }
+            
+            return false;
+        } 
+        
+        // Previous method (find + update)
         \$model = \$this->find(\$id);
         
         if (!\$model) {
@@ -526,6 +614,14 @@ PHP;
      */
     public function delete(int \$id): bool
     {
+        // Use direct delete or find + delete according to configuration
+        \$useDirectDelete = config('repository.query.use_direct_delete', true);
+        
+        if (\$useDirectDelete) {
+            return \$this->{$modelVariable}->where('id', \$id)->delete() > 0;
+        }
+        
+        // Previous method (find + delete)
         \$model = \$this->find(\$id);
         return \$model ? \$model->delete() : false;
     }
@@ -540,23 +636,11 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        if (!empty(\$relations)) {
-            \$query->with(\$relations);
-        }
+        // Load relations more efficiently
+        \$query = \$this->loadRelations(\$query, \$relations);
         
         if (!empty(\$conditions)) {
-            foreach (\$conditions as \$field => \$value) {
-                if (is_array(\$value)) {
-                    if (count(\$value) === 3) {
-                        list(\$field, \$operator, \$searchValue) = \$value;
-                        \$query->where(\$field, \$operator, \$searchValue);
-                    } else {
-                        \$query->whereIn(\$field, \$value);
-                    }
-                } else {
-                    \$query->where(\$field, \$value);
-                }
-            }
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         if (!empty(\$orderBy)) {
@@ -573,13 +657,10 @@ PHP;
      */
     public function createMany(array \$data): \Illuminate\Database\Eloquent\Collection
     {
-        \$models = collect();
-        
-        foreach (\$data as \$item) {
-            \$models->push(\$this->create(\$item));
-        }
-        
-        return \$models;
+        // Optimized to use less memory and be more efficient
+        return collect(\$data)->map(function(\$item) {
+            return \$this->create(\$item);
+        });
     }
     
     /**
@@ -592,17 +673,8 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        foreach (\$conditions as \$field => \$value) {
-            if (is_array(\$value)) {
-                if (count(\$value) === 3) {
-                    list(\$field, \$operator, \$searchValue) = \$value;
-                    \$query->where(\$field, \$operator, \$searchValue);
-                } else {
-                    \$query->whereIn(\$field, \$value);
-                }
-            } else {
-                \$query->where(\$field, \$value);
-            }
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         return \$query->update(\$data);
@@ -618,20 +690,54 @@ PHP;
         // Apply scopes if provided
         \$query = \$this->applyScopes(\$query, \$scopes);
         
-        foreach (\$conditions as \$field => \$value) {
-            if (is_array(\$value)) {
-                if (count(\$value) === 3) {
-                    list(\$field, \$operator, \$searchValue) = \$value;
-                    \$query->where(\$field, \$operator, \$searchValue);
-                } else {
-                    \$query->whereIn(\$field, \$value);
-                }
-            } else {
-                \$query->where(\$field, \$value);
-            }
+        if (!empty(\$conditions)) {
+            \$this->applyConditions(\$query, \$conditions);
         }
         
         return \$query->delete();
+    }
+    
+    /**
+     * Begin a new database transaction
+     *
+     * @return void
+     */
+    public function beginTransaction(): void
+    {
+        \Illuminate\Support\Facades\DB::beginTransaction();
+    }
+    
+    /**
+     * Commit the active database transaction
+     *
+     * @return void
+     */
+    public function commit(): void
+    {
+        \Illuminate\Support\Facades\DB::commit();
+    }
+    
+    /**
+     * Rollback the active database transaction
+     *
+     * @return void
+     */
+    public function rollBack(): void
+    {
+        \Illuminate\Support\Facades\DB::rollBack();
+    }
+    
+    /**
+     * Execute a callback within a transaction
+     *
+     * @param  callable  \$callback
+     * @return mixed
+     *
+     * @throws \\Throwable
+     */
+    public function transaction(callable \$callback)
+    {
+        return \Illuminate\Support\Facades\DB::transaction(\$callback);
     }
 PHP;
     }
