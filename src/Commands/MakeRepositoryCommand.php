@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class MakeRepositoryCommand extends Command
 {
-    protected $signature = 'make:repository {name} {model?} {--force} {--abstract}';
+    protected $signature = 'make:repository {name} {model?} {--force} {--abstract} {--empty : Create an empty repository without predefined methods}';
     protected $description = 'Create a repository with its contract and implementation';
 
     public function handle()
@@ -82,6 +82,20 @@ class MakeRepositoryCommand extends Command
     {
         $namespace = $namespace ? "App\\Repositories\\Contracts\\{$namespace}" : "App\\Repositories\\Contracts";
 
+        // Si la opción --empty está activada, crear una interfaz vacía
+        if ($this->option('empty')) {
+            return <<<PHP
+<?php
+
+namespace {$namespace};
+
+interface {$name}Interface
+{
+    // Define your custom methods here
+}
+PHP;
+        }
+
         return <<<PHP
 <?php
 
@@ -126,6 +140,27 @@ PHP;
         $constructorContent = File::exists(app_path('Repositories/BaseRepository.php')) ?
             $this->getExtendedConstructorContent($modelVariable, $model) :
             $this->getStandardConstructorContent($modelVariable, $model);
+
+        // Si la opción --empty está activada, crear un repositorio vacío solo con el constructor
+        if ($this->option('empty')) {
+            return <<<PHP
+<?php
+
+namespace {$namespace};
+
+use {$contractNamespace}\\{$name}Interface;
+use {$modelClass};
+{$useBaseRepository}
+
+class {$name} {$extendsBaseRepository}implements {$name}Interface
+{
+    protected \${$modelVariable};
+
+{$constructorContent}
+    // Define your custom methods here
+}
+PHP;
+        }
 
         $methodsContent = File::exists(app_path('Repositories/BaseRepository.php')) ?
             "" :

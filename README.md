@@ -56,6 +56,16 @@ php artisan make:repository UserRepository User --abstract
 
 This will create a `BaseRepository` and `BaseRepositoryInterface` in your application, which other repositories can extend.
 
+### Creating an Empty Repository
+
+If you want to create a repository without any predefined methods, use the `--empty` option:
+
+```sh
+php artisan make:repository UserRepository --empty
+```
+
+This creates a repository and interface structure without any predefined methods, allowing you to define your own custom methods.
+
 ## Available Commands
 
 ### `make:repository`
@@ -64,7 +74,7 @@ This command generates a repository along with its contract and implementation.
 
 #### **Usage:**
 ```sh
-php artisan make:repository {name} {model?} {--force} {--abstract}
+php artisan make:repository {name} {model?} {--force} {--abstract} {--empty}
 ```
 
 #### **Arguments:**
@@ -74,6 +84,7 @@ php artisan make:repository {name} {model?} {--force} {--abstract}
 #### **Options:**
 - `--force`: Overwrite existing files if they already exist.
 - `--abstract`: Generate a BaseRepository and BaseRepositoryInterface.
+- `--empty`: Create an empty repository without predefined methods.
 
 #### **Examples:**
 
@@ -89,11 +100,14 @@ php artisan make:repository UserRepository User --abstract
 
 # Force overwrite of existing files
 php artisan make:repository UserRepository User --force
+
+# Create an empty repository without predefined methods
+php artisan make:repository UserRepository --empty
 ```
 
 ## Available Repository Methods
 
-Each generated repository includes the following methods:
+Each generated repository includes the following methods (unless created with the `--empty` option):
 
 - `all(array $columns = ['*'])`: Get all records.
 - `find(int $id, array $columns = ['*'])`: Find a record by ID.
