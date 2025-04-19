@@ -5,6 +5,7 @@ namespace Juankno\Repository\Providers;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class RepositoryServiceProvider extends ServiceProvider
 {
@@ -48,11 +49,63 @@ class RepositoryServiceProvider extends ServiceProvider
         $basePath = app_path('Repositories');
 
         if (!File::exists($basePath)) {
+            // Crear el directorio si no existe para evitar errores
+            try {
+                File::makeDirectory($basePath, 0755, true);
+            } catch (\Exception $e) {
+                // No hacer nada si no se puede crear - esto es solo preventivo
+            }
             return;
         }
 
+        // Registrar primero cualquier repositorio personalizado del usuario
+        $this->registerCustomBindings();
+
         // Procesar directorios de repositorios
         $this->processDirectory($basePath);
+
+        // Registrar manualmente algunos bindings comunes si existen pero no se detectaron
+        $this->registerCommonBindings();
+    }
+
+    /**
+     * Registra bindings personalizados desde el archivo RepositoryServiceProvider del usuario
+     */
+    protected function registerCustomBindings()
+    {
+        $providerPath = app_path('Providers/RepositoryServiceProvider.php');
+        
+        if (File::exists($providerPath)) {
+            // El provider ya ha sido publicado, no hacemos nada adicional
+            // ya que ese provider se encargará de los bindings personalizados
+            return;
+        }
+    }
+
+    /**
+     * Registra algunos bindings comunes que podrían no ser detectados automáticamente
+     */
+    protected function registerCommonBindings()
+    {
+        // Lista de bindings comunes para verificar
+        $commonBindings = [
+            'User' => [
+                'interface' => 'App\\Repositories\\Contracts\\UserRepositoryInterface',
+                'implementation' => 'App\\Repositories\\UserRepository',
+            ],
+            'Auth' => [
+                'interface' => 'App\\Repositories\\Contracts\\AuthRepositoryInterface',
+                'implementation' => 'App\\Repositories\\AuthRepository',
+            ],
+        ];
+
+        foreach ($commonBindings as $binding) {
+            if (interface_exists($binding['interface']) && class_exists($binding['implementation'])) {
+                if (!$this->app->bound($binding['interface'])) {
+                    $this->app->bind($binding['interface'], $binding['implementation']);
+                }
+            }
+        }
     }
 
     /**
@@ -63,44 +116,58 @@ class RepositoryServiceProvider extends ServiceProvider
      */
     protected function processDirectory($directory)
     {
-        foreach (File::allFiles($directory) as $file) {
-            // Omitir directorios de contratos
-            if (Str::contains($file->getRelativePath(), 'Contracts')) {
-                continue;
-            }
+        // Si el directorio no existe, salir
+        if (!File::exists($directory)) {
+            return;
+        }
 
-            // Procesar solo archivos PHP
-            if ($file->getExtension() !== 'php') {
-                continue;
-            }
-
-            // Obtener el FQN de la clase desde la ruta del archivo
-            $class = $this->getClassFromPath($file->getPathname());
-
-            // Omitir si la clase no existe o no termina con Repository
-            // o si es BaseRepository o una clase abstracta
-            if (!class_exists($class) || 
-                !Str::endsWith($class, 'Repository') || 
-                $class === 'App\\Repositories\\BaseRepository') {
-                continue;
-            }
-
-            // Verificar si la clase es abstracta
-            try {
-                $reflectionClass = new \ReflectionClass($class);
-                if ($reflectionClass->isAbstract()) {
+        try {
+            foreach (File::allFiles($directory) as $file) {
+                // Omitir directorios de contratos
+                if (Str::contains($file->getRelativePath(), 'Contracts')) {
                     continue;
                 }
-            } catch (\ReflectionException $e) {
-                continue;
+
+                // Procesar solo archivos PHP
+                if ($file->getExtension() !== 'php') {
+                    continue;
+                }
+
+                // Obtener el FQN de la clase desde la ruta del archivo
+                $class = $this->getClassFromPath($file->getPathname());
+
+                // Omitir si la clase no existe o no termina con Repository
+                // o si es BaseRepository o una clase abstracta
+                if (!class_exists($class) || 
+                    !Str::endsWith($class, 'Repository') || 
+                    $class === 'App\\Repositories\\BaseRepository') {
+                    continue;
+                }
+
+                // Verificar si la clase es abstracta
+                try {
+                    $reflectionClass = new \ReflectionClass($class);
+                    if ($reflectionClass->isAbstract()) {
+                        continue;
+                    }
+                } catch (\ReflectionException $e) {
+                    continue;
+                }
+
+                // Construir el nombre de la interfaz
+                $interface = $this->buildInterfaceName($class);
+
+                // Enlazar si la interfaz existe
+                if (interface_exists($interface)) {
+                    if (!$this->app->bound($interface)) {
+                        $this->app->bind($interface, $class);
+                    }
+                }
             }
-
-            // Construir el nombre de la interfaz
-            $interface = $this->buildInterfaceName($class);
-
-            // Enlazar si la interfaz existe
-            if (interface_exists($interface)) {
-                $this->app->bind($interface, $class);
+        } catch (\Exception $e) {
+            if (config('app.debug')) {
+                // Solo registrar errores en modo debug para evitar llenar logs en producción
+                Log::warning("Error al procesar directorios de repositorios: " . $e->getMessage());
             }
         }
     }
