@@ -117,9 +117,10 @@ interface {$name}Interface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Collection
      */
-    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection;
     
     /**
      * Find a record by ID
@@ -128,9 +129,10 @@ interface {$name}Interface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$appends Attributes to append
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Model|null
      */
-    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?Model;
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = [], array \$scopes = []): ?Model;
     
     /**
      * Find a record by a specific field
@@ -139,9 +141,10 @@ interface {$name}Interface
      * @param mixed \$value Value to search
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Model|null
      */
-    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?Model;
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = [], array \$scopes = []): ?Model;
     
     /**
      * Find records matching conditions
@@ -150,9 +153,10 @@ interface {$name}Interface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Collection
      */
-    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): Collection;
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): Collection;
     
     /**
      * Paginate records
@@ -162,9 +166,10 @@ interface {$name}Interface
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
      * @param array \$conditions Conditions to filter
+     * @param array \$scopes Array of scope names or callables to apply
      * @return LengthAwarePaginator
      */
-    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): LengthAwarePaginator;
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = [], array \$scopes = []): LengthAwarePaginator;
     
     /**
      * Create a new record
@@ -198,9 +203,10 @@ interface {$name}Interface
      * @param array \$columns Columns to select
      * @param array \$relations Relations to load
      * @param array \$orderBy Order columns [column => direction]
+     * @param array \$scopes Array of scope names or callables to apply
      * @return Model|null
      */
-    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?Model;
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): ?Model;
     
     /**
      * Create multiple records in a single operation
@@ -215,17 +221,19 @@ interface {$name}Interface
      * 
      * @param array \$conditions Conditions to filter records to update
      * @param array \$data Data to update
+     * @param array \$scopes Array of scope names or callables to apply
      * @return bool
      */
-    public function updateWhere(array \$conditions, array \$data): bool;
+    public function updateWhere(array \$conditions, array \$data, array \$scopes = []): bool;
     
     /**
      * Delete records in bulk based on conditions
      * 
      * @param array \$conditions Conditions to filter records to delete
+     * @param array \$scopes Array of scope names or callables to apply
      * @return bool|int Number of records deleted or false if failed
      */
-    public function deleteWhere(array \$conditions): bool|int;
+    public function deleteWhere(array \$conditions, array \$scopes = []): bool|int;
 }
 PHP;
     }
@@ -326,11 +334,40 @@ PHP;
     {
         return <<<PHP
     /**
+     * Apply scopes to the query builder
+     *
+     * @param \$query
+     * @param array \$scopes Array of scope names or callables to apply
+     * @return mixed
+     */
+    protected function applyScopes(\$query, array \$scopes = [])
+    {
+        foreach (\$scopes as \$scope) {
+            if (is_string(\$scope)) {
+                // Apply named scope defined in the model
+                \$query->\$scope();
+            } elseif (is_callable(\$scope)) {
+                // Apply closure scope
+                \$scope(\$query);
+            } elseif (is_array(\$scope) && count(\$scope) >= 1) {
+                // Apply scope with parameters - first element is scope name, rest are parameters
+                \$method = array_shift(\$scope);
+                \$query->\$method(...\$scope);
+            }
+        }
+        
+        return \$query;
+    }
+
+    /**
      * Get all records
      */
-    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = []): \Illuminate\Database\Eloquent\Collection
+    public function all(array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): \Illuminate\Database\Eloquent\Collection
     {
         \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -348,9 +385,12 @@ PHP;
     /**
      * Find a record by ID
      */
-    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = []): ?\Illuminate\Database\Eloquent\Model
+    public function find(int \$id, array \$columns = ['*'], array \$relations = [], array \$appends = [], array \$scopes = []): ?\Illuminate\Database\Eloquent\Model
     {
         \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -368,9 +408,12 @@ PHP;
     /**
      * Find a record by a specific field
      */
-    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = []): ?\Illuminate\Database\Eloquent\Model
+    public function findBy(string \$field, mixed \$value, array \$columns = ['*'], array \$relations = [], array \$scopes = []): ?\Illuminate\Database\Eloquent\Model
     {
         \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -382,9 +425,12 @@ PHP;
     /**
      * Find records matching conditions
      */
-    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = []): \Illuminate\Database\Eloquent\Collection
+    public function findWhere(array \$conditions, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): \Illuminate\Database\Eloquent\Collection
     {
         \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -415,9 +461,12 @@ PHP;
     /**
      * Paginate records
      */
-    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = []): \Illuminate\Pagination\LengthAwarePaginator
+    public function paginate(int \$perPage = 15, array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$conditions = [], array \$scopes = []): \Illuminate\Pagination\LengthAwarePaginator
     {
         \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -484,9 +533,12 @@ PHP;
     /**
      * Get the first record matching conditions
      */
-    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = []): ?\Illuminate\Database\Eloquent\Model
+    public function first(array \$conditions = [], array \$columns = ['*'], array \$relations = [], array \$orderBy = [], array \$scopes = []): ?\Illuminate\Database\Eloquent\Model
     {
         \$query = \$this->{$modelVariable}->select(\$columns);
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         if (!empty(\$relations)) {
             \$query->with(\$relations);
@@ -533,9 +585,12 @@ PHP;
     /**
      * Update records in bulk based on conditions
      */
-    public function updateWhere(array \$conditions, array \$data): bool
+    public function updateWhere(array \$conditions, array \$data, array \$scopes = []): bool
     {
         \$query = \$this->{$modelVariable}->query();
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         foreach (\$conditions as \$field => \$value) {
             if (is_array(\$value)) {
@@ -556,9 +611,12 @@ PHP;
     /**
      * Delete records in bulk based on conditions
      */
-    public function deleteWhere(array \$conditions): bool|int
+    public function deleteWhere(array \$conditions, array \$scopes = []): bool|int
     {
         \$query = \$this->{$modelVariable}->query();
+        
+        // Apply scopes if provided
+        \$query = \$this->applyScopes(\$query, \$scopes);
         
         foreach (\$conditions as \$field => \$value) {
             if (is_array(\$value)) {
