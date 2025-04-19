@@ -97,6 +97,10 @@ class RepositoryServiceProvider extends ServiceProvider
                 'interface' => 'App\\Repositories\\Contracts\\AuthRepositoryInterface',
                 'implementation' => 'App\\Repositories\\AuthRepository',
             ],
+            'Post' => [
+                'interface' => 'App\\Repositories\\Contracts\\PostRepositoryInterface',
+                'implementation' => 'App\\Repositories\\PostRepository',
+            ],
         ];
 
         foreach ($commonBindings as $binding) {

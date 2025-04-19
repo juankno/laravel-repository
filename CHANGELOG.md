@@ -2,6 +2,13 @@
 
 Todos los cambios notables a este proyecto serán documentados en este archivo.
 
+## [1.3.0] - 2025-04-20
+
+### Añadido
+- Soporte para scopes de Eloquent en todos los métodos de consulta (all, find, findBy, findWhere, paginate, etc.)
+- Nuevo método `applyScopes()` en BaseRepository para aplicar scopes de forma flexible
+- Documentación sobre cómo usar scopes con ejemplos prácticos
+
 ## [1.2.0] - 2025-04-18
 
 ### Añadido
