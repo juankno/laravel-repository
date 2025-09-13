@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class MakeRepositoryCommand extends Command
 {
-    protected $signature = 'make:repository {name} {model?} {--force} {--abstract} {--empty : Create an empty repository without predefined methods} {--no-traits : Create a repository with implementation without using traits}';
-    protected $description = 'Create a repository with its contract and implementation';
+    protected $signature = 'make:repository {name} {model?} {--force} {--abstract} {--full : Create a repository with all predefined methods} {--no-traits : Create a repository with implementation without using traits}';
+    protected $description = 'Create a basic repository with its contract (use --full for complete functionality)';
 
     public function handle()
     {
@@ -108,16 +108,58 @@ class MakeRepositoryCommand extends Command
     {
         $namespace = $namespace ? "App\\Repositories\\{$interfacesFolderName}\\{$namespace}" : "App\\Repositories\\{$interfacesFolderName}";
 
-        // If the --empty option is active, create an empty interface
-        if ($this->option('empty')) {
+        // By default, create a basic interface. Use --full for complete interface
+        if (!$this->option('full')) {
             return <<<PHP
 <?php
 
 namespace {$namespace};
 
+/**
+ * Interface {$name}Interface
+ * @package {$namespace}
+ */
 interface {$name}Interface
 {
-    // Define your custom methods here
+    /**
+     * Find a record by ID
+     * 
+     * @param int \$id
+     * @return mixed
+     */
+    public function find(int \$id);
+
+    /**
+     * Get all records
+     * 
+     * @return mixed
+     */
+    public function getAll();
+
+    /**
+     * Create a new record
+     * 
+     * @param array \$data
+     * @return mixed
+     */
+    public function create(array \$data);
+
+    /**
+     * Update an existing record
+     * 
+     * @param int \$id
+     * @param array \$data
+     * @return mixed
+     */
+    public function update(int \$id, array \$data);
+
+    /**
+     * Delete a record
+     * 
+     * @param int \$id
+     * @return bool
+     */
+    public function delete(int \$id);
 }
 PHP;
         }
@@ -287,8 +329,8 @@ PHP;
             $this->getExtendedConstructorContent($model) :
             $this->getStandardConstructorContent($model);
 
-        // Si la opción --empty está activada, crear un repositorio vacío solo con el constructor
-        if ($this->option('empty')) {
+        // By default, create a basic repository. Use --full for complete repository with all methods
+        if (!$this->option('full')) {
             return <<<PHP
 <?php
 
@@ -298,6 +340,10 @@ use {$contractNamespace}\\{$name}Interface;
 use {$modelClass};
 {$useBaseRepository}
 
+/**
+ * Class {$name}
+ * @package {$namespace}
+ */
 class {$name} {$extendsBaseRepository}implements {$name}Interface
 {
     /**
@@ -306,7 +352,74 @@ class {$name} {$extendsBaseRepository}implements {$name}Interface
     protected \$model;
 
 {$constructorContent}
-    // Define your custom methods here
+    /**
+     * Find a record by ID
+     * 
+     * @param int \$id
+     * @return {$model}|null
+     */
+    public function find(int \$id)
+    {
+        return \$this->model->find(\$id);
+    }
+
+    /**
+     * Get all records
+     * 
+     * @return \\Illuminate\\Database\\Eloquent\\Collection
+     */
+    public function getAll()
+    {
+        return \$this->model->all();
+    }
+
+    /**
+     * Create a new record
+     * 
+     * @param array \$data
+     * @return {$model}
+     */
+    public function create(array \$data)
+    {
+        return \$this->model->create(\$data);
+    }
+
+    /**
+     * Update an existing record
+     * 
+     * @param int \$id
+     * @param array \$data
+     * @return {$model}|bool
+     */
+    public function update(int \$id, array \$data)
+    {
+        \$record = \$this->find(\$id);
+        
+        if (!\$record) {
+            return false;
+        }
+        
+        \$record->update(\$data);
+        
+        return \$record->fresh();
+    }
+
+    /**
+     * Delete a record
+     * 
+     * @param int \$id
+     * @return bool
+     */
+    public function delete(int \$id)
+    {
+        \$record = \$this->find(\$id);
+        
+        if (!\$record) {
+            return false;
+        }
+        
+        return \$record->delete();
+    }
 }
 PHP;
         }
