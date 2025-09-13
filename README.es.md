@@ -4,6 +4,15 @@
 
 Este paquete simplifica el trabajo con el **Patrón de Repositorio** en Laravel al generar automáticamente archivos de repositorio, contratos y enlaces.
 
+## 🆕 **Nuevo en v1.7.0** - Simple por Defecto
+
+El comportamiento del comando ha sido mejorado para seguir el **principio de menor sorpresa**:
+
+- **Por defecto**: Crea un repositorio básico con métodos CRUD esenciales (find, getAll, create, update, delete)
+- **Avanzado**: Usa la bandera `--full` para obtener todas las características avanzadas (filtrado, scoping, operaciones en lote, etc.)
+
+Esto hace que el paquete sea más amigable para principiantes mientras mantiene todo el poder para usuarios avanzados.
+
 ## Instalación
 
 Instale el paquete usando Composer:
@@ -34,16 +43,24 @@ php artisan vendor:publish --tag=repository-provider
 
 ### Creando un Repositorio
 
-Para generar un nuevo repositorio, ejecute el siguiente comando Artisan:
+Para generar un repositorio básico (recomendado), ejecute el siguiente comando Artisan:
 
 ```sh
-php artisan make:repository RepositoryName
+php artisan make:repository UserRepository
 ```
+
+Esto crea un repositorio simple con operaciones CRUD básicas (find, getAll, create, update, delete).
 
 Si desea asociarlo con un modelo específico:
 
 ```sh
 php artisan make:repository UserRepository User
+```
+
+Para un repositorio con **todos los métodos y características avanzadas**, use la opción `--full`:
+
+```sh
+php artisan make:repository UserRepository User --full
 ```
 
 ### Generando un Repositorio Base
@@ -56,15 +73,15 @@ php artisan make:repository UserRepository User --abstract
 
 Esto creará un `BaseRepository` y `BaseRepositoryInterface` en su aplicación, que otros repositorios pueden extender.
 
-### Creando un Repositorio Vacío
+### Creando un Repositorio con Todas las Características
 
-Si desea crear un repositorio sin ningún método predefinido, utilice la opción `--empty`:
+Si necesita todas las características y métodos avanzados, use la opción `--full`:
 
 ```sh
-php artisan make:repository UserRepository --empty
+php artisan make:repository UserRepository --full
 ```
 
-Esto crea una estructura de repositorio e interfaz sin métodos predefinidos, permitiéndole definir sus propios métodos personalizados.
+Esto crea un repositorio con todos los métodos disponibles incluyendo filtrado avanzado, scoping, operaciones en lote y más.
 
 ## Comandos Disponibles
 
@@ -74,7 +91,7 @@ Este comando genera un repositorio junto con su contrato e implementación.
 
 #### **Uso:**
 ```sh
-php artisan make:repository {name} {model?} {--force} {--abstract} {--empty} {--no-traits}
+php artisan make:repository {name} {model?} {--force} {--abstract} {--full} {--no-traits}
 ```
 
 #### **Argumentos:**
@@ -84,20 +101,29 @@ php artisan make:repository {name} {model?} {--force} {--abstract} {--empty} {--
 #### **Opciones:**
 - `--force`: Sobrescribe archivos existentes.
 - `--abstract`: Genera también clases base abstractas.
-- `--empty`: Crea un repositorio vacío sin métodos predefinidos.
+- `--full`: Crea un repositorio con todos los métodos y características avanzadas.
 - `--no-traits`: Crea un repositorio con toda la implementación en la clase sin utilizar traits.
 
 #### **Ejemplos:**
 
 ```sh
-# Crear un repositorio básico
+# Crear un repositorio básico (recomendado para la mayoría de casos)
 php artisan make:repository UserRepository User
+
+# Crear un repositorio con todos los métodos avanzados
+php artisan make:repository UserRepository User --full
 
 # Crear un repositorio en una subcarpeta
 php artisan make:repository Admin/UserRepository User
 
 # Crear un repositorio y generar BaseRepository
 php artisan make:repository UserRepository User --abstract
+
+# Forzar sobrescritura de archivos existentes
+php artisan make:repository UserRepository User --force
+
+# Crear repositorio sin traits (implementación directa)
+php artisan make:repository UserRepository User --no-traits
 
 # Forzar sobrescritura de archivos existentes
 php artisan make:repository UserRepository User --force
@@ -111,7 +137,19 @@ php artisan make:repository UserRepository --no-traits
 
 ## Métodos Disponibles en el Repositorio
 
-Cada repositorio generado incluye los siguientes métodos (a menos que se cree con la opción `--empty`):
+### Métodos del Repositorio Básico (Por Defecto)
+
+Cada repositorio básico incluye estos métodos CRUD esenciales:
+
+- `find(int $id)`: Encontrar un registro por ID.
+- `getAll()`: Obtener todos los registros.
+- `create(array $data)`: Crear un nuevo registro.
+- `update(int $id, array $data)`: Actualizar un registro.
+- `delete(int $id)`: Eliminar un registro.
+
+### Métodos del Repositorio Completo (opción --full)
+
+Cuando se usa la opción `--full`, los repositorios incluyen todos estos métodos avanzados:
 
 - `all(array $columns = ['*'], array $relations = [], array $orderBy = [])`: Obtener todos los registros.
 - `find(int $id, array $columns = ['*'], array $relations = [], array $appends = [])`: Encontrar un registro por ID.
