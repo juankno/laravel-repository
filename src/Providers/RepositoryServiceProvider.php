@@ -269,7 +269,13 @@ class RepositoryServiceProvider extends ServiceProvider
         // Get the configured interface folder name
         $interfacesFolderName = config('repository.structure.interfaces_folder', 'Contracts');
         
-        // Replace 'Repositories' with 'Repositories\{interfacesFolderName}' in the namespace
-        return str_replace('Repositories\\', "Repositories\\{$interfacesFolderName}\\", $namespace) . '\\' . $interfaceName;
+        // Handle both cases: root level repositories and subdirectory repositories
+        if (Str::endsWith($namespace, 'Repositories')) {
+            // Case: App\Repositories -> App\Repositories\Contracts
+            return $namespace . '\\' . $interfacesFolderName . '\\' . $interfaceName;
+        } else {
+            // Case: App\Repositories\Admin -> App\Repositories\Contracts\Admin  
+            return str_replace('Repositories\\', "Repositories\\{$interfacesFolderName}\\", $namespace) . '\\' . $interfaceName;
+        }
     }
 }
