@@ -1,7 +1,7 @@
 {
   "name": "juankno/laravel-repository",
   "description": "A Laravel package to easily implement the Repository Pattern with automatic binding and generation.",
-  "version": "v1.6.1",
+  "version": "v1.7.0",
   "type": "library",
   "license": "MIT",
   "authors": [

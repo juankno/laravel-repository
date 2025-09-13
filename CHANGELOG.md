@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0] - 2025-09-13
+
+### 🎯 **Changed - Breaking Improvement**
+- **REVERSED** default behavior of `make:repository` command for better UX
+- **NEW DEFAULT**: Creates basic repositories with essential CRUD methods (find, getAll, create, update, delete)
+- **NEW OPTION**: `--full` flag to generate repositories with all advanced methods and features
+- **REMOVED**: `--empty` option (replaced by improved default behavior)
+
+### 🔧 **Fixed**
+- Fixed interface name generation bug in `buildInterfaceName()` method for root-level repositories
+- Improved code formatting in generated files with proper PSR-12 compliance
+- Fixed indentation issues in heredoc templates
+- Added `formatCode()` method to ensure consistent code generation
+
+### 📚 **Improved**
+- Updated command description to reflect new behavior
+- Completely revised documentation (README.md and README.es.md) 
+- Added "Simple by Default" section explaining the new approach
+- Reorganized method documentation into Basic vs Full repository sections
+- Updated all examples and command references
+
+### 🚀 **Benefits**
+- More beginner-friendly default behavior
+- Follows CLI best practices: "Simple by default, powerful when needed"
+- Reduced cognitive load for new users
+- Maintains full backward compatibility for advanced features
+
 ## [1.6.0] - 2025-04-19
 
 ### Added
