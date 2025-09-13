@@ -110,7 +110,7 @@ class MakeRepositoryCommand extends Command
 
         // By default, create a basic interface. Use --full for complete interface
         if (!$this->option('full')) {
-            return <<<PHP
+            return $this->formatCode(<<<PHP
 <?php
 
 namespace {$namespace};
@@ -161,7 +161,8 @@ interface {$name}Interface
      */
     public function delete(int \$id);
 }
-PHP;
+PHP
+            );
         }
 
         return <<<PHP
@@ -331,7 +332,7 @@ PHP;
 
         // By default, create a basic repository. Use --full for complete repository with all methods
         if (!$this->option('full')) {
-            return <<<PHP
+            return $this->formatCode(<<<PHP
 <?php
 
 namespace {$namespace};
@@ -421,7 +422,8 @@ class {$name} {$extendsBaseRepository}implements {$name}Interface
         return \$record->delete();
     }
 }
-PHP;
+PHP
+            );
         }
 
         // Si se está usando la opción --abstract, extender de BaseRepository sin usar traits
@@ -1450,5 +1452,29 @@ abstract class BaseRepository implements BaseRepositoryInterface
     }
 }
 PHP;
+    }
+
+    /**
+     * Format the generated code to ensure proper indentation and PSR-12 compliance
+     * 
+     * @param string $code
+     * @return string
+     */
+    protected function formatCode(string $code): string
+    {
+        // Split into lines
+        $lines = explode("\n", $code);
+        $formattedLines = [];
+        
+        foreach ($lines as $line) {
+            // Skip empty lines at the beginning
+            if (empty($formattedLines) && trim($line) === '') {
+                continue;
+            }
+            
+            $formattedLines[] = $line;
+        }
+        
+        return implode("\n", $formattedLines);
     }
 }

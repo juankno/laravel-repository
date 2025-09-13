@@ -4,6 +4,15 @@
 
 This package simplifies working with the **Repository Pattern** in Laravel by automatically generating repository files, contracts, and bindings.
 
+## 🆕 **New in v1.7.0** - Simple by Default
+
+The command behavior has been improved to follow the **principle of least surprise**:
+
+- **Default**: Creates a basic repository with essential CRUD methods (find, getAll, create, update, delete)
+- **Advanced**: Use `--full` flag to get all advanced features (filtering, scoping, bulk operations, etc.)
+
+This makes the package more beginner-friendly while keeping all the power for advanced users.
+
 ## Installation
 
 Install the package using Composer:
@@ -34,16 +43,24 @@ php artisan vendor:publish --tag=repository-provider
 
 ### Creating a Repository
 
-To generate a new repository, run the following Artisan command:
+To generate a basic repository (recommended), run the following Artisan command:
 
 ```sh
-php artisan make:repository RepositoryName
+php artisan make:repository UserRepository
 ```
+
+This creates a simple repository with basic CRUD operations (find, getAll, create, update, delete).
 
 If you want to associate it with a specific model:
 
 ```sh
 php artisan make:repository UserRepository User
+```
+
+For a repository with **all advanced methods and features**, use the `--full` option:
+
+```sh
+php artisan make:repository UserRepository User --full
 ```
 
 ### Generating a Base Repository
@@ -56,15 +73,15 @@ php artisan make:repository UserRepository User --abstract
 
 This will create a `BaseRepository` and `BaseRepositoryInterface` in your application, which other repositories can extend.
 
-### Creating an Empty Repository
+### Creating a Full-Featured Repository
 
-If you want to create a repository without any predefined methods, use the `--empty` option:
+If you need all advanced features and methods, use the `--full` option:
 
 ```sh
-php artisan make:repository UserRepository --empty
+php artisan make:repository UserRepository --full
 ```
 
-This creates a repository and interface structure without any predefined methods, allowing you to define your own custom methods.
+This creates a repository with all available methods including advanced filtering, scoping, bulk operations, and more.
 
 ## Available Commands
 
@@ -74,7 +91,7 @@ This command generates a repository along with its contract and implementation.
 
 #### **Usage:**
 ```sh
-php artisan make:repository {name} {model?} {--force} {--abstract} {--empty}
+php artisan make:repository {name} {model?} {--force} {--abstract} {--full} {--no-traits}
 ```
 
 #### **Arguments:**
@@ -84,13 +101,17 @@ php artisan make:repository {name} {model?} {--force} {--abstract} {--empty}
 #### **Options:**
 - `--force`: Overwrite existing files if they already exist.
 - `--abstract`: Generate a BaseRepository and BaseRepositoryInterface.
-- `--empty`: Create an empty repository without predefined methods.
+- `--full`: Create a repository with all advanced methods and features.
+- `--no-traits`: Create a repository with implementation without using traits.
 
 #### **Examples:**
 
 ```sh
-# Create a basic repository
+# Create a basic repository (recommended for most cases)
 php artisan make:repository UserRepository User
+
+# Create a repository with all advanced methods
+php artisan make:repository UserRepository User --full
 
 # Create a repository in a subfolder
 php artisan make:repository Admin/UserRepository User
@@ -101,13 +122,25 @@ php artisan make:repository UserRepository User --abstract
 # Force overwrite of existing files
 php artisan make:repository UserRepository User --force
 
-# Create an empty repository without predefined methods
-php artisan make:repository UserRepository --empty
+# Create repository without traits (direct implementation)
+php artisan make:repository UserRepository User --no-traits
 ```
 
 ## Available Repository Methods
 
-Each generated repository includes the following methods (unless created with the `--empty` option):
+### Basic Repository Methods (Default)
+
+Each basic repository includes these essential CRUD methods:
+
+- `find(int $id)`: Find a record by ID.
+- `getAll()`: Get all records.
+- `create(array $data)`: Create a new record.
+- `update(int $id, array $data)`: Update a record.
+- `delete(int $id)`: Delete a record.
+
+### Full Repository Methods (--full option)
+
+When using the `--full` option, repositories include all these advanced methods:
 
 - `all(array $columns = ['*'], array $relations = [], array $orderBy = [])`: Get all records.
 - `find(int $id, array $columns = ['*'], array $relations = [], array $appends = [])`: Find a record by ID.
