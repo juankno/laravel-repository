@@ -3,6 +3,7 @@
 namespace Juankno\Repository\Traits;
 
 use Illuminate\Pagination\LengthAwarePaginator;
+use Juankno\Repository\Helpers\SecurityHelper;
 
 /**
  * Trait for handling pagination in repositories
@@ -14,6 +15,11 @@ trait PaginationTrait
      */
     public function paginate(int $perPage = 15, array $columns = ['*'], array $relations = [], array $orderBy = [], array $conditions = [], array $scopes = []): LengthAwarePaginator
     {
+        // Validate column names to prevent SQL injection
+        if (!SecurityHelper::areValidColumnNames($columns)) {
+            throw new \InvalidArgumentException("Invalid column names in select");
+        }
+        
         $query = $this->model->select($columns);
         
         // Apply scopes if provided
@@ -45,6 +51,11 @@ trait PaginationTrait
      */
     public function cursorPaginate(int $perPage = 15, array $columns = ['*'], array $relations = [], array $orderBy = [], array $conditions = [], array $scopes = [])
     {
+        // Validate column names to prevent SQL injection
+        if (!SecurityHelper::areValidColumnNames($columns)) {
+            throw new \InvalidArgumentException("Invalid column names in select");
+        }
+        
         $query = $this->model->select($columns);
         
         // Apply scopes if provided
@@ -76,6 +87,11 @@ trait PaginationTrait
      */
     public function simplePaginate(int $perPage = 15, array $columns = ['*'], array $relations = [], array $orderBy = [], array $conditions = [], array $scopes = [])
     {
+        // Validate column names to prevent SQL injection
+        if (!SecurityHelper::areValidColumnNames($columns)) {
+            throw new \InvalidArgumentException("Invalid column names in select");
+        }
+        
         $query = $this->model->select($columns);
         
         // Apply scopes if provided

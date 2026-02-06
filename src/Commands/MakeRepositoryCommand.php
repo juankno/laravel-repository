@@ -23,12 +23,28 @@ class MakeRepositoryCommand extends Command
             $model = Str::studly($modelArg);
         }
 
+        // Enhanced validation to prevent path traversal attacks
         if (preg_match('/[^A-Za-z0-9\/\\\\]/', $name)) {
             $this->error("The repository name contains invalid characters.");
             return;
         }
+        
+        // Prevent directory traversal attempts
+        if (Str::contains($name, '..')) {
+            $this->error("The repository name cannot contain '..' (directory traversal).");
+            return;
+        }
 
         $pathParts = explode('/', $name);
+        
+        // Validate each path part
+        foreach ($pathParts as $part) {
+            if (empty($part) || $part === '.' || $part === '..') {
+                $this->error("Invalid path component in repository name.");
+                return;
+            }
+        }
+        
         $repositoryName = Str::studly(array_pop($pathParts));
 
         if (!Str::endsWith($repositoryName, 'Repository')) {
@@ -41,6 +57,15 @@ class MakeRepositoryCommand extends Command
 
         $repositoryDirectory = app_path('Repositories/' . implode('/', $pathParts));
         $interfacesDirectory = app_path("Repositories/{$interfacesFolderName}/" . implode('/', $pathParts));
+        
+        // Security check: Ensure the resolved paths are within the expected directories
+        $baseRepositoryPath = realpath(app_path('Repositories')) ?: app_path('Repositories');
+        $resolvedRepositoryPath = realpath($repositoryDirectory) ?: $repositoryDirectory;
+        
+        if (!Str::startsWith($resolvedRepositoryPath, $baseRepositoryPath)) {
+            $this->error("Security error: Invalid repository directory path.");
+            return;
+        }
 
         // Crear los directorios necesarios
         if (!File::isDirectory($repositoryDirectory)) {

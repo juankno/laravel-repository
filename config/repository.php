@@ -77,6 +77,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Security Options
+    |--------------------------------------------------------------------------
+    |
+    | Security-related configuration options.
+    |
+    */
+    'security' => [
+        'validate_column_names' => true, // Validate column names against SQL injection
+        'max_results_limit' => 10000, // Maximum number of results for all() method (0 = no limit)
+        'allowed_order_directions' => ['asc', 'desc', 'ASC', 'DESC'], // Allowed ORDER BY directions
+        'sanitize_logs' => true, // Sanitize SQL queries in logs to prevent data exposure
+        'strict_column_validation' => false, // If true, only columns defined in model's $fillable will be allowed
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Scopes
     |--------------------------------------------------------------------------
     |

@@ -1,7 +1,6 @@
 {
   "name": "juankno/laravel-repository",
   "description": "A Laravel package to easily implement the Repository Pattern with automatic binding and generation.",
-  "version": "v1.7.0",
   "type": "library",
   "license": "MIT",
   "authors": [
@@ -32,7 +31,7 @@
     }
   },
   "require-dev": {
-    "phpunit/phpunit": "^9.0"
+    "phpunit/phpunit": "^10.0|^11.0"
   },
   "minimum-stability": "stable",
   "prefer-stable": true
