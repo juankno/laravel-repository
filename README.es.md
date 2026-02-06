@@ -945,6 +945,87 @@ Para publicar el archivo de configuración:
 php artisan vendor:publish --tag=repository-config
 ```
 
+## 🔒 Seguridad
+
+### Protecciones Implementadas (v1.7.1)
+
+Este paquete incluye múltiples capas de seguridad para proteger tu aplicación:
+
+#### 1. Prevención de SQL Injection
+- ✅ Validación automática de nombres de columnas
+- ✅ Validación de direcciones ORDER BY contra whitelist
+- ✅ Lanza excepciones cuando se detectan nombres de columna inválidos
+
+```php
+// ❌ Esto lanzará InvalidArgumentException
+$repository->findWhere(['id; DROP TABLE--' => 1]);
+
+// ✅ Esto funciona correctamente
+$repository->findWhere(['id' => 1]);
+```
+
+#### 2. Protección contra DoS
+- ✅ Límite máximo de resultados configurable (default: 10,000)
+- ✅ Previene consultas que agoten la memoria del servidor
+
+```php
+'security' => [
+    'max_results_limit' => 10000, // 0 = sin límite
+]
+```
+
+#### 3. Sanitización de Logs
+- ✅ Los valores sensibles en logs SQL son reemplazados con `[REDACTED]`
+- ✅ Previene exposición de datos sensibles en archivos de log
+
+#### 4. Validación de Rutas
+- ✅ Protección contra path traversal en generación de archivos
+- ✅ Validación estricta de nombres de repositorios
+
+### Configuración de Seguridad
+
+```php
+// config/repository.php
+'security' => [
+    'validate_column_names' => true,
+    'max_results_limit' => 10000,
+    'allowed_order_directions' => ['asc', 'desc', 'ASC', 'DESC'],
+    'sanitize_logs' => true,
+    'strict_column_validation' => false,
+],
+```
+
+### Responsabilidades del Desarrollador
+
+El paquete implementa protecciones, pero tú debes:
+
+1. **Validar entrada de usuario**
+```php
+$validated = $request->validate([
+    'name' => 'required|string|max:255',
+]);
+$repository->create($validated);
+```
+
+2. **Definir $fillable o $guarded en modelos**
+```php
+protected $fillable = ['name', 'email'];
+```
+
+3. **Implementar autorización**
+```php
+if (!auth()->user()->can('update', $model)) {
+    abort(403);
+}
+```
+
+4. **Usar paginación en lugar de all()**
+```php
+$records = $repository->paginate(50);
+```
+
+📖 **Más información**: Consulta [SECURITY.md](SECURITY.md) para detalles completos.
+
 ## Contribuciones
 
 ¡Las contribuciones son bienvenidas!  

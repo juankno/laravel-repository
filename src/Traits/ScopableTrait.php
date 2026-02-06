@@ -3,6 +3,7 @@
 namespace Juankno\Repository\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
+use Juankno\Repository\Helpers\SecurityHelper;
 
 /**
  * Trait for handling model scopes in repositories
@@ -45,7 +46,9 @@ trait ScopableTrait
                 $scopeName = is_string($scope) ? $scope : 'closure_scope';
                 \Illuminate\Support\Facades\DB::listen(function($query) use ($scopeName) {
                     if (strpos($query->sql, 'select') === 0) {
-                        info("[Repository N+1 Detection] Scope: {$scopeName} - Query: {$query->sql}");
+                        // Sanitize SQL query before logging to prevent data exposure
+                        $sanitizedSql = SecurityHelper::sanitizeSqlForLogging($query->sql, $query->bindings);
+                        info("[Repository N+1 Detection] Scope: {$scopeName} - Query: {$sanitizedSql}");
                     }
                 });
             }

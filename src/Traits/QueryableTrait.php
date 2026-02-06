@@ -3,6 +3,7 @@
 namespace Juankno\Repository\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
+use Juankno\Repository\Helpers\SecurityHelper;
 
 /**
  * Trait for handling query operations in repositories
@@ -15,6 +16,7 @@ trait QueryableTrait
      * @param Builder $query
      * @param array $conditions
      * @return void
+     * @throws \InvalidArgumentException If column name is invalid
      */
     protected function applyConditions($query, array $conditions): void
     {
@@ -22,11 +24,27 @@ trait QueryableTrait
             if (is_array($value)) {
                 if (count($value) === 3) {
                     list($field, $operator, $searchValue) = $value;
+                    
+                    // Validate column name to prevent SQL injection
+                    if (!SecurityHelper::isValidColumnName($field)) {
+                        throw new \InvalidArgumentException("Invalid column name: {$field}");
+                    }
+                    
                     $query->where($field, $operator, $searchValue);
                 } else {
+                    // Validate column name for whereIn
+                    if (!SecurityHelper::isValidColumnName($field)) {
+                        throw new \InvalidArgumentException("Invalid column name: {$field}");
+                    }
+                    
                     $query->whereIn($field, $value);
                 }
             } else {
+                // Validate column name
+                if (!SecurityHelper::isValidColumnName($field)) {
+                    throw new \InvalidArgumentException("Invalid column name: {$field}");
+                }
+                
                 $query->where($field, $value);
             }
         }
@@ -38,11 +56,22 @@ trait QueryableTrait
      * @param Builder $query
      * @param array $orderBy [column => direction]
      * @return Builder
+     * @throws \InvalidArgumentException If column name or direction is invalid
      */
     protected function applyOrderBy($query, array $orderBy): Builder
     {
         if (!empty($orderBy)) {
             foreach ($orderBy as $column => $direction) {
+                // Validate column name to prevent SQL injection
+                if (!SecurityHelper::isValidColumnName($column)) {
+                    throw new \InvalidArgumentException("Invalid column name for ORDER BY: {$column}");
+                }
+                
+                // Validate direction to prevent SQL injection
+                if (!SecurityHelper::isValidOrderDirection($direction)) {
+                    throw new \InvalidArgumentException("Invalid ORDER BY direction: {$direction}");
+                }
+                
                 $query->orderBy($column, $direction);
             }
         }
@@ -98,6 +127,16 @@ trait QueryableTrait
      */
     public function findBy(string $field, mixed $value, array $columns = ['*'], array $relations = [], array $scopes = []): ?\Illuminate\Database\Eloquent\Model
     {
+        // Validate field name to prevent SQL injection
+        if (!SecurityHelper::isValidColumnName($field)) {
+            throw new \InvalidArgumentException("Invalid column name: {$field}");
+        }
+        
+        // Validate column names
+        if (!SecurityHelper::areValidColumnNames($columns)) {
+            throw new \InvalidArgumentException("Invalid column names in select");
+        }
+        
         $query = $this->model->select($columns);
         
         // Apply scopes if provided

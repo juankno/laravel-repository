@@ -4,6 +4,7 @@ namespace Juankno\Repository\Traits;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Juankno\Repository\Helpers\SecurityHelper;
 
 /**
  * Trait for handling CRUD operations in repositories
@@ -15,6 +16,11 @@ trait CrudOperationsTrait
      */
     public function all(array $columns = ['*'], array $relations = [], array $orderBy = [], array $scopes = []): Collection
     {
+        // Validate column names to prevent SQL injection
+        if (!SecurityHelper::areValidColumnNames($columns)) {
+            throw new \InvalidArgumentException("Invalid column names in select");
+        }
+        
         $query = $this->model->select($columns);
         
         // Apply scopes if provided
@@ -26,6 +32,12 @@ trait CrudOperationsTrait
         // Apply order by
         $this->applyOrderBy($query, $orderBy);
         
+        // Apply security limit to prevent DoS
+        $maxLimit = SecurityHelper::getMaxResultsLimit();
+        if ($maxLimit > 0) {
+            $query->limit($maxLimit);
+        }
+        
         return $query->get();
     }
     
@@ -34,6 +46,11 @@ trait CrudOperationsTrait
      */
     public function find(int $id, array $columns = ['*'], array $relations = [], array $appends = [], array $scopes = []): ?Model
     {
+        // Validate column names to prevent SQL injection
+        if (!SecurityHelper::areValidColumnNames($columns)) {
+            throw new \InvalidArgumentException("Invalid column names in select");
+        }
+        
         $query = $this->model->select($columns);
         
         // Apply scopes if provided
